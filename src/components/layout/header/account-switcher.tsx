@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import classNames from 'classnames';
 import { observer } from 'mobx-react-lite';
 import { addComma, getCurrencyDisplayCode, getDecimalPlaces } from '@/components/shared';
@@ -95,6 +95,7 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
     const [kesPerUsd, setKesPerUsd] = useState<number | null>(null);
     const [reset, setReset] = useState<{ busy: boolean; tone?: 'ok' | 'error'; text?: string }>({ busy: false });
     const wrapperRef = useRef<HTMLDivElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
     const { accountList, activeLoginid } = useApiBase();
     const { client, run_panel } = useStore() ?? {};
     const handleLogout = useLogout();
@@ -117,6 +118,30 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
             document.removeEventListener('keydown', handleKeyDown);
         };
     }, []);
+
+    // Desktop and tablet: the menu hangs under the balance. Where the balance sits near a screen
+    // edge (it moves to the left on tablets), slide the menu so it stays fully on screen.
+    useLayoutEffect(() => {
+        const el = dropdownRef.current;
+        if (!isOpen || !el || window.matchMedia('(max-width: 767px)').matches) return;
+        el.style.setProperty('--acc-shift', '0px');
+        const rect = el.getBoundingClientRect();
+        const margin = 8;
+        let shift = 0;
+        if (rect.left < margin) shift = margin - rect.left;
+        else if (rect.right > window.innerWidth - margin) shift = window.innerWidth - margin - rect.right;
+        el.style.setProperty('--acc-shift', `${shift}px`);
+    }, [isOpen]);
+
+    // On phones the menu is a bottom sheet: keep the page behind it from scrolling.
+    useEffect(() => {
+        if (!isOpen || !window.matchMedia('(max-width: 767px)').matches) return;
+        const previous = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = previous;
+        };
+    }, [isOpen]);
 
     useEffect(() => {
         let cancelled = false;
@@ -313,128 +338,216 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
                 </div>
             </AccountInfoWrapper>
             {isOpen && (
-                <div className='acc-dropdown' role='listbox' aria-label={localize('Accounts')}>
-                    <div className='acc-dropdown__tabs' role='tablist'>
-                        <button
-                            type='button'
-                            role='tab'
-                            aria-selected={accountTab === 'real'}
-                            className={classNames({ 'is-active': accountTab === 'real' })}
-                            onClick={() => setAccountTab('real')}
-                        >
-                            <Localize i18n_default_text='Real' />
-                        </button>
-                        <button
-                            type='button'
-                            role='tab'
-                            aria-selected={accountTab === 'demo'}
-                            className={classNames({ 'is-active': accountTab === 'demo' })}
-                            onClick={() => setAccountTab('demo')}
-                        >
-                            <Localize i18n_default_text='Demo' />
-                        </button>
-                    </div>
-                    <p className='acc-dropdown__label'>
-                        <Localize i18n_default_text='Display currency' />
-                    </p>
-                    <div className='acc-dropdown__currencies'>
-                        {currencies.map(code => (
+                <>
+                    <button
+                        type='button'
+                        className='acc-dropdown-backdrop'
+                        aria-label={localize('Close')}
+                        tabIndex={-1}
+                        onClick={() => setIsOpen(false)}
+                    />
+                    <div className='acc-dropdown' ref={dropdownRef} role='dialog' aria-label={localize('Accounts')}>
+                        <div className='acc-dropdown__grip' aria-hidden='true' />
+                        <div className='acc-dropdown__head'>
+                            <strong>
+                                <Localize i18n_default_text='Accounts' />
+                            </strong>
                             <button
-                                key={code}
                                 type='button'
-                                className={classNames('acc-dropdown__currency', {
-                                    'is-selected': code === selectedCurrency,
-                                })}
-                                onClick={() => chooseDisplayCurrency(code)}
+                                className='acc-dropdown__close'
+                                aria-label={localize('Close')}
+                                onClick={() => setIsOpen(false)}
                             >
-                                <strong>{code}</strong>
-                                <span>{CURRENCY_NAME[code] || code}</span>
-                                {code === selectedCurrency && <i aria-hidden='true'>✓</i>}
+                                <svg width='14' height='14' viewBox='0 0 14 14' aria-hidden='true'>
+                                    <path
+                                        d='M2 2l10 10M12 2L2 12'
+                                        stroke='currentColor'
+                                        strokeWidth='1.8'
+                                        strokeLinecap='round'
+                                    />
+                                </svg>
                             </button>
-                        ))}
-                    </div>
-                    {showingShillings && (
-                        <p className='acc-dropdown__rate'>
-                            {kesPerUsd
-                                ? `1 USD = ${kesPerUsd.toFixed(2)} KSH`
-                                : localize('Fetching the shilling rate…')}
-                        </p>
-                    )}
-                    <p className='acc-dropdown__label'>
-                        <Localize i18n_default_text='Deriv accounts' />
-                    </p>
-                    {listedAccounts.length === 0 && (
-                        <p className='acc-dropdown__empty'>
-                            <Localize i18n_default_text='No account in this currency.' />
-                        </p>
-                    )}
-                    {listedAccounts.map(account => (
-                        <div
-                            key={account.loginid}
-                            role='option'
-                            aria-selected={account.isActive}
-                            tabIndex={0}
-                            className={classNames('acc-dropdown__account', {
-                                'acc-dropdown__account--selected': account.isActive,
-                            })}
-                            onClick={() => !account.isActive && handleAccountSelect(account.loginid)}
-                            onKeyDown={e => {
-                                if (!account.isActive && (e.key === 'Enter' || e.key === ' ')) {
-                                    e.preventDefault();
-                                    handleAccountSelect(account.loginid);
-                                }
-                            }}
-                        >
-                            <span className='acc-dropdown__flag' aria-hidden='true'>
-                                <FlagMark code={getCurrencyDisplayCode(account.currency || '')} />
-                            </span>
-                            <span className='acc-dropdown__meta'>
-                                <strong>
-                                    {getCurrencyDisplayCode(account.currency || '') || localize('No currency')}
-                                </strong>
-                                <small>{account.loginid}</small>
-                            </span>
-                            <span className='acc-dropdown__amount'>
-                                {showingShillings
-                                    ? kesPerUsd
-                                        ? `${asShillings(account.raw)} ${KSH}`
-                                        : localize('Fetching rate…')
-                                    : `${account.balance} ${getCurrencyDisplayCode(account.currency || '')}`}
-                            </span>
-                            {account.isVirtual && account.isActive && (
-                                <button
-                                    type='button'
-                                    className='acc-dropdown__reset'
-                                    disabled={reset.busy}
-                                    onClick={e => {
-                                        e.stopPropagation();
-                                        resetDemoBalance(account.loginid);
-                                    }}
-                                    onKeyDown={e => e.stopPropagation()}
-                                >
-                                    {reset.busy ? localize('Resetting…') : localize('Reset balance')}
-                                </button>
-                            )}
                         </div>
-                    ))}
-                    {accountTab === 'demo' && reset.text && (
-                        <p
-                            className={classNames(
-                                'acc-dropdown__reset-note',
-                                `acc-dropdown__reset-note--${reset.tone}`
-                            )}
-                            role='status'
-                        >
-                            {reset.text}
+
+                        <div className='acc-dropdown__tabs' role='tablist'>
+                            <button
+                                type='button'
+                                role='tab'
+                                aria-selected={accountTab === 'real'}
+                                className={classNames({ 'is-active': accountTab === 'real' })}
+                                onClick={() => setAccountTab('real')}
+                            >
+                                <Localize i18n_default_text='Real' />
+                            </button>
+                            <button
+                                type='button'
+                                role='tab'
+                                aria-selected={accountTab === 'demo'}
+                                className={classNames({ 'is-active': accountTab === 'demo' })}
+                                onClick={() => setAccountTab('demo')}
+                            >
+                                <Localize i18n_default_text='Demo' />
+                            </button>
+                        </div>
+
+                        <p className='acc-dropdown__label'>
+                            <Localize i18n_default_text='Display currency' />
                         </p>
-                    )}
-                    <a className='acc-dropdown__hub' href={TRADERS_HUB_URL} target='_blank' rel='noopener noreferrer'>
-                        <Localize i18n_default_text="Looking for CFD accounts? Go to Trader's Hub" />
-                    </a>
-                    <button type='button' className='acc-dropdown__logout' onClick={() => handleLogout()}>
-                        <Localize i18n_default_text='Logout' />
-                    </button>
-                </div>
+                        <div className='acc-dropdown__currencies'>
+                            {currencies.map(code => (
+                                <button
+                                    key={code}
+                                    type='button'
+                                    aria-pressed={code === selectedCurrency}
+                                    className={classNames('acc-dropdown__currency', {
+                                        'is-selected': code === selectedCurrency,
+                                    })}
+                                    onClick={() => chooseDisplayCurrency(code)}
+                                >
+                                    <span className='acc-dropdown__currency-flag' aria-hidden='true'>
+                                        <FlagMark code={code} />
+                                    </span>
+                                    <span className='acc-dropdown__currency-text'>
+                                        <strong>{code}</strong>
+                                        <small>{CURRENCY_NAME[code] || code}</small>
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                        {showingShillings && (
+                            <p className='acc-dropdown__rate'>
+                                {kesPerUsd
+                                    ? `1 USD = ${kesPerUsd.toFixed(2)} KSH`
+                                    : localize('Fetching the shilling rate…')}
+                            </p>
+                        )}
+
+                        <p className='acc-dropdown__label'>
+                            {accountTab === 'demo' ? (
+                                <Localize i18n_default_text='Demo accounts' />
+                            ) : (
+                                <Localize i18n_default_text='Real accounts' />
+                            )}
+                        </p>
+                        {listedAccounts.length === 0 && (
+                            <p className='acc-dropdown__empty'>
+                                {accountTab === 'real' ? (
+                                    <Localize i18n_default_text='No real account in this currency yet.' />
+                                ) : (
+                                    <Localize i18n_default_text='No account in this currency.' />
+                                )}
+                            </p>
+                        )}
+                        <div className='acc-dropdown__list' role='listbox' aria-label={localize('Deriv accounts')}>
+                            {listedAccounts.map(account => (
+                                <div
+                                    key={account.loginid}
+                                    role='option'
+                                    aria-selected={account.isActive}
+                                    tabIndex={0}
+                                    className={classNames('acc-dropdown__account', {
+                                        'acc-dropdown__account--selected': account.isActive,
+                                    })}
+                                    onClick={() => !account.isActive && handleAccountSelect(account.loginid)}
+                                    onKeyDown={e => {
+                                        if (!account.isActive && (e.key === 'Enter' || e.key === ' ')) {
+                                            e.preventDefault();
+                                            handleAccountSelect(account.loginid);
+                                        }
+                                    }}
+                                >
+                                    <span className='acc-dropdown__flag' aria-hidden='true'>
+                                        <FlagMark code={getCurrencyDisplayCode(account.currency || '')} />
+                                    </span>
+                                    <span className='acc-dropdown__meta'>
+                                        <strong>
+                                            {getCurrencyDisplayCode(account.currency || '') || localize('No currency')}
+                                            <em
+                                                className={classNames('acc-dropdown__badge', {
+                                                    'acc-dropdown__badge--demo': account.isVirtual,
+                                                })}
+                                            >
+                                                {account.isVirtual ? localize('Demo') : localize('Real')}
+                                            </em>
+                                        </strong>
+                                        <small>{account.loginid}</small>
+                                    </span>
+                                    <span className='acc-dropdown__amount'>
+                                        {showingShillings
+                                            ? kesPerUsd
+                                                ? `${asShillings(account.raw)} ${KSH}`
+                                                : localize('Fetching rate…')
+                                            : `${account.balance} ${getCurrencyDisplayCode(account.currency || '')}`}
+                                        {account.isActive && <small>{localize('Active')}</small>}
+                                    </span>
+                                    {account.isVirtual && account.isActive && (
+                                        <button
+                                            type='button'
+                                            className='acc-dropdown__reset'
+                                            disabled={reset.busy}
+                                            onClick={e => {
+                                                e.stopPropagation();
+                                                resetDemoBalance(account.loginid);
+                                            }}
+                                            onKeyDown={e => e.stopPropagation()}
+                                        >
+                                            <svg width='14' height='14' viewBox='0 0 16 16' aria-hidden='true'>
+                                                <path
+                                                    d='M13.5 8A5.5 5.5 0 1 1 11.9 4.1M13.5 2v3.5H10'
+                                                    fill='none'
+                                                    stroke='currentColor'
+                                                    strokeWidth='1.6'
+                                                    strokeLinecap='round'
+                                                    strokeLinejoin='round'
+                                                />
+                                            </svg>
+                                            {reset.busy
+                                                ? localize('Resetting…')
+                                                : localize('Reset balance to 10,000 USD')}
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        {accountTab === 'demo' && reset.text && (
+                            <p
+                                className={classNames(
+                                    'acc-dropdown__reset-note',
+                                    `acc-dropdown__reset-note--${reset.tone}`
+                                )}
+                                role='status'
+                            >
+                                {reset.text}
+                            </p>
+                        )}
+
+                        <div className='acc-dropdown__footer'>
+                            <a
+                                className='acc-dropdown__hub'
+                                href={TRADERS_HUB_URL}
+                                target='_blank'
+                                rel='noopener noreferrer'
+                                title={localize("Looking for CFD accounts? Go to Trader's Hub")}
+                            >
+                                <Localize i18n_default_text="CFDs on Trader's Hub" />
+                                <span aria-hidden='true'>↗</span>
+                            </a>
+                            <button type='button' className='acc-dropdown__logout' onClick={() => handleLogout()}>
+                                <svg width='16' height='16' viewBox='0 0 16 16' aria-hidden='true'>
+                                    <path
+                                        d='M6 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1H6M10.5 11l3-3-3-3M13.5 8H6'
+                                        fill='none'
+                                        stroke='currentColor'
+                                        strokeWidth='1.6'
+                                        strokeLinecap='round'
+                                        strokeLinejoin='round'
+                                    />
+                                </svg>
+                                <Localize i18n_default_text='Log out' />
+                            </button>
+                        </div>
+                    </div>
+                </>
             )}
         </div>
     );
