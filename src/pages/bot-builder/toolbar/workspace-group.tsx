@@ -1,8 +1,8 @@
 import classNames from 'classnames';
 import { observer } from 'mobx-react-lite';
+import { requestPublish } from '@/components/vindolar/bot-library/publish-request';
 import { DBOT_TABS } from '@/constants/bot-contents';
 import { useStore } from '@/hooks/useStore';
-import { requestPublish } from '@/pages/free-bots/publish-request';
 import { useOwner } from '@/services/vindolar/free-bots-api';
 import {
     LabelPairedArrowRotateLeftMdRegularIcon,
@@ -85,7 +85,7 @@ const WorkspaceGroup = observer(() => {
                 />
                 {is_admin && (
                     <ToolbarIcon
-                        popover_message={localize('Publish to Free Bots')}
+                        popover_message={localize('Publish bot (Free, Premium or Premium AI)')}
                         icon={
                             <span
                                 className='toolbar__icon'

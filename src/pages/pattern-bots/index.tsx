@@ -1,13 +1,14 @@
 import classNames from 'classnames';
 import AutoSession from '@/components/vindolar/auto-session';
+import BotLibrary from '@/components/vindolar/bot-library/bot-library';
 import NumberField from '@/components/vindolar/number-field';
 import { MarketSelect } from '@/components/vindolar/pickers';
+import ToolHero, { PageBackdrop } from '@/components/vindolar/tool-hero';
 import { useAutoTrader } from '@/hooks/useAutoTrader';
 import { useVolatilitySymbols } from '@/hooks/useMarketData';
 import { usePersistentState } from '@/hooks/usePersistentState';
 import { createDigitStrategy, getPreset, PATTERN_PRESETS, TPatternPreset } from '@/services/vindolar/digit-strategies';
 import { LabelPairedArrowUpRightCaptionRegularIcon } from '@deriv/quill-icons/LabelPaired';
-import ToolHero, { PageBackdrop } from '@/components/vindolar/tool-hero';
 import { localize } from '@deriv-com/translations';
 
 const PresetCard = ({
@@ -87,7 +88,11 @@ const PresetRunner = ({ preset }: { preset: TPatternPreset }) => {
                     name: localize(recovery.name),
                 })}
             </p>
-            <AutoSession id={id} buildStrategy={buildStrategy} start_label={localize('Start {{name}}', { name: localize(preset.name) })}>
+            <AutoSession
+                id={id}
+                buildStrategy={buildStrategy}
+                start_label={localize('Start {{name}}', { name: localize(preset.name) })}
+            >
                 <div className='vd-row'>
                     <MarketSelect value={market} onChange={setMarket} include_all disabled={is_running} />
                     <NumberField
@@ -111,7 +116,9 @@ const PatternBots = () => {
 
     const open = (id: string) => {
         setSelected(id);
-        requestAnimationFrame(() => document.getElementById('vd-preset-runner')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        requestAnimationFrame(() =>
+            document.getElementById('vd-preset-runner')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        );
     };
 
     return (
@@ -122,6 +129,12 @@ const PatternBots = () => {
                 title={localize('Premium AI Bots')}
                 subtitle={localize('Preset digit-pattern bots. Each one explains exactly when it trades.')}
             />
+            {/* Bots the owner publishes for this page (Bot Builder bots); hidden when empty. */}
+            <BotLibrary
+                collection='premium-ai'
+                heading={localize('Premium AI bot library')}
+                card_label='Premium AI bot'
+            />
             <p className='vd-page__note'>
                 {localize(
                     'These bots follow fixed rules on recent digits and switch to a recovery rule after a loss. Digits are random, so no pattern guarantees a win — use the stop loss.'
@@ -129,7 +142,13 @@ const PatternBots = () => {
             </p>
             <div className='vd-page__grid vd-preset-grid'>
                 {PATTERN_PRESETS.map((p, i) => (
-                    <PresetCard key={p.id} preset={p} number={i + 1} is_selected={p.id === selected} onOpen={() => open(p.id)} />
+                    <PresetCard
+                        key={p.id}
+                        preset={p}
+                        number={i + 1}
+                        is_selected={p.id === selected}
+                        onOpen={() => open(p.id)}
+                    />
                 ))}
             </div>
             {preset && (

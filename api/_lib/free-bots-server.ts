@@ -6,13 +6,33 @@
  * - VINDOLAR_ADMIN_LOGINIDS: the owner's Deriv account IDs, comma separated.
  */
 import { del, list, put } from '@vercel/blob';
-import { isAdminAccount, sanitizeBots, TStoredBot } from '../../src/services/vindolar/free-bots-schema';
+import {
+    isAdminAccount,
+    isBotCollection,
+    sanitizeBots,
+    TBotCollection,
+    TStoredBot,
+} from '../../src/services/vindolar/free-bots-schema';
 
-const PREFIX = 'free-bots/bots-';
+// Free Bots keep their original folder so lists saved before collections existed still load.
+const prefixFor = (collection: TBotCollection) =>
+    collection === 'free' ? 'free-bots/bots-' : `bot-lists/${collection}/bots-`;
+
+/** Which list a request is about (?collection=…), "free" when not given. */
+export const collectionFromQuery = (
+    query: Record<string, string | string[] | undefined> | undefined
+): TBotCollection => {
+    const raw = query?.collection;
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    if (value === undefined || value === '') return 'free';
+    if (!isBotCollection(value)) throw new HttpError(400, 'Unknown bot list.');
+    return value;
+};
 const ACCOUNTS_URL = process.env.DERIV_ACCOUNTS_URL || 'https://api.derivws.com/trading/v1/options/accounts';
 
 export type TRequest = {
     method?: string;
+    query?: Record<string, string | string[] | undefined>;
     headers: Record<string, string | string[] | undefined>;
     body?: unknown;
 };
@@ -65,9 +85,9 @@ const assertStorage = () => {
 };
 
 /** The published list, or null when the owner has never published (the site then uses its built-in bots). */
-export const readBots = async (): Promise<TStoredBot[] | null> => {
+export const readBots = async (collection: TBotCollection = 'free'): Promise<TStoredBot[] | null> => {
     if (!process.env.BLOB_READ_WRITE_TOKEN) return null;
-    const { blobs } = await list({ prefix: PREFIX });
+    const { blobs } = await list({ prefix: prefixFor(collection) });
     if (!blobs.length) return null;
     const latest = blobs.reduce((a, b) => (new Date(a.uploadedAt) > new Date(b.uploadedAt) ? a : b));
     // Every save gets a new file name, so this URL is never a stale cached copy.
@@ -76,7 +96,7 @@ export const readBots = async (): Promise<TStoredBot[] | null> => {
     return (await response.json()) as TStoredBot[];
 };
 
-export const writeBots = async (input: unknown): Promise<TStoredBot[]> => {
+export const writeBots = async (input: unknown, collection: TBotCollection = 'free'): Promise<TStoredBot[]> => {
     assertStorage();
     let bots: TStoredBot[];
     try {
@@ -84,13 +104,14 @@ export const writeBots = async (input: unknown): Promise<TStoredBot[]> => {
     } catch (e) {
         throw new HttpError(400, (e as Error).message);
     }
-    const saved = await put(`${PREFIX}${Date.now()}.json`, JSON.stringify(bots), {
+    const prefix = prefixFor(collection);
+    const saved = await put(`${prefix}${Date.now()}.json`, JSON.stringify(bots), {
         access: 'public',
         contentType: 'application/json',
         addRandomSuffix: true,
     });
     // Keep only the newest file.
-    const { blobs } = await list({ prefix: PREFIX });
+    const { blobs } = await list({ prefix });
     const old = blobs.filter(blob => blob.url !== saved.url).map(blob => blob.url);
     if (old.length) await del(old);
     return bots;

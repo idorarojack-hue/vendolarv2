@@ -7,10 +7,12 @@
  */
 import React from 'react';
 import { OAuthTokenExchangeService } from '@/services/oauth-token-exchange.service';
-import { TStoredBot } from './free-bots-schema';
+import { TBotCollection, TStoredBot } from './free-bots-schema';
 
 const DEV_OWNER_KEY = 'vd_dev_owner';
-const DEV_BOTS_KEY = 'vd_dev_free_bots';
+const devBotsKey = (collection: TBotCollection) =>
+    collection === 'free' ? 'vd_dev_free_bots' : `vd_dev_bots_${collection}`;
+const botsUrl = (collection: TBotCollection) => `/api/bots?collection=${collection}`;
 
 const isDevOwner = () => {
     if (process.env.NODE_ENV === 'production') return false;
@@ -34,17 +36,17 @@ const readJson = async (response: Response) => {
 };
 
 /** Published bots, or null to use the built-in list. Never throws. */
-export const fetchPublishedBots = async (): Promise<TStoredBot[] | null> => {
+export const fetchPublishedBots = async (collection: TBotCollection = 'free'): Promise<TStoredBot[] | null> => {
     if (isDevOwner()) {
         try {
-            const saved = localStorage.getItem(DEV_BOTS_KEY);
+            const saved = localStorage.getItem(devBotsKey(collection));
             return saved ? (JSON.parse(saved) as TStoredBot[]) : null;
         } catch {
             return null;
         }
     }
     try {
-        const response = await fetch('/api/bots', { cache: 'no-store' });
+        const response = await fetch(botsUrl(collection), { cache: 'no-store' });
         if (!response.ok) return null;
         const data = await readJson(response);
         return Array.isArray(data?.bots) ? data.bots : null;
@@ -54,12 +56,12 @@ export const fetchPublishedBots = async (): Promise<TStoredBot[] | null> => {
 };
 
 /** Owner only. Replaces the published list; rejects with the server's reason. */
-export const publishBots = async (bots: TStoredBot[]): Promise<TStoredBot[]> => {
+export const publishBots = async (bots: TStoredBot[], collection: TBotCollection = 'free'): Promise<TStoredBot[]> => {
     if (isDevOwner()) {
-        localStorage.setItem(DEV_BOTS_KEY, JSON.stringify(bots));
+        localStorage.setItem(devBotsKey(collection), JSON.stringify(bots));
         return bots;
     }
-    const response = await fetch('/api/bots', {
+    const response = await fetch(botsUrl(collection), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ bots }),

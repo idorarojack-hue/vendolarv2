@@ -5,6 +5,13 @@
 
 export type TBotConfigValue = string | number;
 
+/** Bot lists the owner manages; each page shows one. */
+export const BOT_COLLECTIONS = ['free', 'premium', 'premium-ai'] as const;
+export type TBotCollection = (typeof BOT_COLLECTIONS)[number];
+
+export const isBotCollection = (value: unknown): value is TBotCollection =>
+    typeof value === 'string' && (BOT_COLLECTIONS as readonly string[]).includes(value);
+
 export type TStoredBot = {
     id: string;
     name: string;

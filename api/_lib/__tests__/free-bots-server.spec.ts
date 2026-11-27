@@ -3,7 +3,14 @@
  */
 import { del, list, put } from '@vercel/blob';
 import { isAdminAccount, sanitizeBots } from '../../../src/services/vindolar/free-bots-schema';
-import { accountIdsForToken, HttpError, readBots, requireAdmin, writeBots } from '../free-bots-server';
+import {
+    accountIdsForToken,
+    collectionFromQuery,
+    HttpError,
+    readBots,
+    requireAdmin,
+    writeBots,
+} from '../free-bots-server';
 
 jest.mock('@vercel/blob', () => ({ list: jest.fn(), put: jest.fn(), del: jest.fn() }));
 
@@ -116,5 +123,25 @@ describe('bot storage', () => {
     it('rejects an invalid list without saving', async () => {
         await expect(writeBots([{ id: 'x' }])).rejects.toMatchObject({ status: 400 });
         expect(put).not.toHaveBeenCalled();
+    });
+
+    it('keeps each page in its own list', async () => {
+        (put as jest.Mock).mockResolvedValue({ url: 'https://blob/p' });
+        (list as jest.Mock).mockResolvedValue({ blobs: [{ url: 'https://blob/p' }] });
+        await writeBots([bot], 'premium');
+        expect(put).toHaveBeenCalledWith(
+            expect.stringMatching(/^bot-lists\/premium\/bots-/),
+            expect.any(String),
+            expect.any(Object)
+        );
+        expect(list).toHaveBeenCalledWith({ prefix: 'bot-lists/premium/bots-' });
+    });
+});
+
+describe('bot list names', () => {
+    it('defaults to Free Bots and rejects unknown lists', () => {
+        expect(collectionFromQuery(undefined)).toBe('free');
+        expect(collectionFromQuery({ collection: 'premium-ai' })).toBe('premium-ai');
+        expect(() => collectionFromQuery({ collection: '../secrets' })).toThrow(HttpError);
     });
 });

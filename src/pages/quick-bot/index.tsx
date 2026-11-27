@@ -1,20 +1,58 @@
 import React from 'react';
 import classNames from 'classnames';
 import { observer } from 'mobx-react-lite';
+import BotLibrary from '@/components/vindolar/bot-library/bot-library';
 import NumberField from '@/components/vindolar/number-field';
 import { MarketSelect } from '@/components/vindolar/pickers';
+import ToolHero, { PageBackdrop } from '@/components/vindolar/tool-hero';
 import { DBOT_TABS } from '@/constants/bot-contents';
 import { usePersistentState } from '@/hooks/usePersistentState';
 import { useStore } from '@/hooks/useStore';
 import { loadBot, STRATEGY_LABELS, TBotConfig, TBotTradeType, TStrategyKey } from '@/services/vindolar/bot-loader';
-import ToolHero, { PageBackdrop } from '@/components/vindolar/tool-hero';
 import { localize } from '@deriv-com/translations';
 
-const TRADE_TYPES: { id: TBotTradeType; label: string; contracts: { value: string; label: string }[]; has_digit: boolean }[] = [
-    { id: 'callput', label: 'Rise/Fall', contracts: [{ value: 'CALL', label: 'Rise' }, { value: 'PUT', label: 'Fall' }], has_digit: false },
-    { id: 'evenodd', label: 'Even/Odd', contracts: [{ value: 'DIGITEVEN', label: 'Even' }, { value: 'DIGITODD', label: 'Odd' }], has_digit: false },
-    { id: 'overunder', label: 'Over/Under', contracts: [{ value: 'DIGITOVER', label: 'Over' }, { value: 'DIGITUNDER', label: 'Under' }], has_digit: true },
-    { id: 'matchesdiffers', label: 'Matches/Differs', contracts: [{ value: 'DIGITMATCH', label: 'Matches' }, { value: 'DIGITDIFF', label: 'Differs' }], has_digit: true },
+const TRADE_TYPES: {
+    id: TBotTradeType;
+    label: string;
+    contracts: { value: string; label: string }[];
+    has_digit: boolean;
+}[] = [
+    {
+        id: 'callput',
+        label: 'Rise/Fall',
+        contracts: [
+            { value: 'CALL', label: 'Rise' },
+            { value: 'PUT', label: 'Fall' },
+        ],
+        has_digit: false,
+    },
+    {
+        id: 'evenodd',
+        label: 'Even/Odd',
+        contracts: [
+            { value: 'DIGITEVEN', label: 'Even' },
+            { value: 'DIGITODD', label: 'Odd' },
+        ],
+        has_digit: false,
+    },
+    {
+        id: 'overunder',
+        label: 'Over/Under',
+        contracts: [
+            { value: 'DIGITOVER', label: 'Over' },
+            { value: 'DIGITUNDER', label: 'Under' },
+        ],
+        has_digit: true,
+    },
+    {
+        id: 'matchesdiffers',
+        label: 'Matches/Differs',
+        contracts: [
+            { value: 'DIGITMATCH', label: 'Matches' },
+            { value: 'DIGITDIFF', label: 'Differs' },
+        ],
+        has_digit: true,
+    },
 ];
 
 const STRATEGY_HELP: Record<TStrategyKey, string> = {
@@ -61,7 +99,8 @@ const QuickBot = observer(() => {
     if (config.stake < 0.35) problems.push(localize('Stake must be at least 0.35.'));
     if (!(config.profit > 0)) problems.push(localize('Set a take profit above 0.'));
     if (!(config.loss > 0)) problems.push(localize('Set a stop loss above 0.'));
-    if (use_max && (config.max_stake ?? 0) < config.stake) problems.push(localize('Max stake must be at least the stake.'));
+    if (use_max && (config.max_stake ?? 0) < config.stake)
+        problems.push(localize('Max stake must be at least the stake.'));
 
     const open = async (action: 'LOAD' | 'RUN') => {
         setError(null);
@@ -77,7 +116,9 @@ const QuickBot = observer(() => {
                 quick_strategy,
                 {
                     ...config,
-                    prediction: trade_type.has_digit ? Math.min(Math.max(config.prediction ?? 4, digit_min), digit_max) : undefined,
+                    prediction: trade_type.has_digit
+                        ? Math.min(Math.max(config.prediction ?? 4, digit_min), digit_max)
+                        : undefined,
                     duration: Math.max(config.duration, 1),
                     max_stake: use_max ? config.max_stake : undefined,
                 },
@@ -97,8 +138,12 @@ const QuickBot = observer(() => {
             <ToolHero
                 eyebrow={localize('Vindolar · Bots')}
                 title={localize('Premium Bots')}
-                subtitle={localize('Build a bot from a simple form. It opens in the Bot Builder, where you can check or change every block.')}
+                subtitle={localize(
+                    'Build a bot from a simple form. It opens in the Bot Builder, where you can check or change every block.'
+                )}
             />
+            {/* Ready-made premium bots the owner publishes; hidden when empty. */}
+            <BotLibrary collection='premium' heading={localize('Premium bot library')} card_label='Premium bot' />
 
             <div className='vd-page__columns'>
                 <section className='vd-card'>
@@ -112,7 +157,11 @@ const QuickBot = observer(() => {
                                 value={config.tradetype}
                                 onChange={e => {
                                     const next = TRADE_TYPES.find(t => t.id === e.target.value) ?? TRADE_TYPES[1];
-                                    update({ tradetype: next.id, contract: next.contracts[0].value, duration: next.id === 'callput' ? 5 : 1 });
+                                    update({
+                                        tradetype: next.id,
+                                        contract: next.contracts[0].value,
+                                        duration: next.id === 'callput' ? 5 : 1,
+                                    });
                                 }}
                             >
                                 {TRADE_TYPES.map(t => (
@@ -149,8 +198,21 @@ const QuickBot = observer(() => {
                                 onChange={prediction => update({ prediction })}
                             />
                         )}
-                        <NumberField label={localize('Duration (ticks)')} value={config.duration} min={1} max={10} decimals={0} onChange={duration => update({ duration })} />
-                        <NumberField label={localize('Stake')} unit='USD' value={config.stake} min={0.35} onChange={stake => update({ stake })} />
+                        <NumberField
+                            label={localize('Duration (ticks)')}
+                            value={config.duration}
+                            min={1}
+                            max={10}
+                            decimals={0}
+                            onChange={duration => update({ duration })}
+                        />
+                        <NumberField
+                            label={localize('Stake')}
+                            unit='USD'
+                            value={config.stake}
+                            min={0.35}
+                            onChange={stake => update({ stake })}
+                        />
                     </div>
 
                     <h3 className='vd-card__title'>{localize('Bot parameters')}</h3>
@@ -158,7 +220,12 @@ const QuickBot = observer(() => {
                         <label className='vd-field__label' htmlFor='vd-quick-bot-system'>
                             {localize('Stake system')}
                         </label>
-                        <select id='vd-quick-bot-system' className='vd-select' value={config.strategy} onChange={e => update({ strategy: e.target.value as TStrategyKey })}>
+                        <select
+                            id='vd-quick-bot-system'
+                            className='vd-select'
+                            value={config.strategy}
+                            onChange={e => update({ strategy: e.target.value as TStrategyKey })}
+                        >
                             {(Object.keys(STRATEGY_LABELS) as TStrategyKey[]).map(key => (
                                 <option key={key} value={key}>
                                     {STRATEGY_LABELS[key]}
@@ -168,21 +235,65 @@ const QuickBot = observer(() => {
                         <small className='vd-number__hint'>{localize(STRATEGY_HELP[config.strategy])}</small>
                     </div>
                     <div className='vd-row'>
-                        <NumberField label={localize('Take profit')} unit='USD' value={config.profit} min={0} onChange={profit => update({ profit })} />
-                        <NumberField label={localize('Stop loss')} unit='USD' value={config.loss} min={0} onChange={loss => update({ loss })} />
-                        {uses_size && <NumberField label={localize('Size (multiplier)')} unit='×' value={config.size ?? 2} min={1.1} max={10} onChange={size => update({ size })} />}
-                        {uses_unit && <NumberField label={localize('Unit')} value={config.unit ?? 1} min={1} max={10} decimals={0} onChange={unit => update({ unit })} />}
+                        <NumberField
+                            label={localize('Take profit')}
+                            unit='USD'
+                            value={config.profit}
+                            min={0}
+                            onChange={profit => update({ profit })}
+                        />
+                        <NumberField
+                            label={localize('Stop loss')}
+                            unit='USD'
+                            value={config.loss}
+                            min={0}
+                            onChange={loss => update({ loss })}
+                        />
+                        {uses_size && (
+                            <NumberField
+                                label={localize('Size (multiplier)')}
+                                unit='×'
+                                value={config.size ?? 2}
+                                min={1.1}
+                                max={10}
+                                onChange={size => update({ size })}
+                            />
+                        )}
+                        {uses_unit && (
+                            <NumberField
+                                label={localize('Unit')}
+                                value={config.unit ?? 1}
+                                min={1}
+                                max={10}
+                                decimals={0}
+                                onChange={unit => update({ unit })}
+                            />
+                        )}
                     </div>
-                    {config.strategy !== 'STRATEGY_1_3_2_6' && config.strategy !== 'REVERSE_MARTINGALE' && config.strategy !== 'REVERSE_D_ALEMBERT' && (
-                        <div className='vd-row'>
-                            <label className='vd-switch'>
-                                <input type='checkbox' checked={use_max} onChange={e => setUseMax(e.target.checked)} />
-                                <span className='vd-switch__track' aria-hidden='true' />
-                                <span>{localize('Max stake')}</span>
-                            </label>
-                            {use_max && <NumberField label={localize('Max stake')} unit='USD' value={config.max_stake ?? 8} min={0.35} onChange={max_stake => update({ max_stake })} />}
-                        </div>
-                    )}
+                    {config.strategy !== 'STRATEGY_1_3_2_6' &&
+                        config.strategy !== 'REVERSE_MARTINGALE' &&
+                        config.strategy !== 'REVERSE_D_ALEMBERT' && (
+                            <div className='vd-row'>
+                                <label className='vd-switch'>
+                                    <input
+                                        type='checkbox'
+                                        checked={use_max}
+                                        onChange={e => setUseMax(e.target.checked)}
+                                    />
+                                    <span className='vd-switch__track' aria-hidden='true' />
+                                    <span>{localize('Max stake')}</span>
+                                </label>
+                                {use_max && (
+                                    <NumberField
+                                        label={localize('Max stake')}
+                                        unit='USD'
+                                        value={config.max_stake ?? 8}
+                                        min={0.35}
+                                        onChange={max_stake => update({ max_stake })}
+                                    />
+                                )}
+                            </div>
+                        )}
                 </section>
 
                 <aside className='vd-card'>
@@ -191,7 +302,9 @@ const QuickBot = observer(() => {
                         {localize(
                             'Buys {{contract}}{{digit}} on {{market}} for {{duration}} tick(s), starting at {{stake}} USD, using {{strategy}}. Stops at +{{tp}} USD profit or -{{sl}} USD loss.',
                             {
-                                contract: trade_type.contracts.find(c => c.value === config.contract)?.label ?? config.contract,
+                                contract:
+                                    trade_type.contracts.find(c => c.value === config.contract)?.label ??
+                                    config.contract,
                                 digit: trade_type.has_digit ? ` ${config.prediction}` : '',
                                 market: config.symbol,
                                 duration: config.duration,
@@ -213,7 +326,12 @@ const QuickBot = observer(() => {
                             <span>{localize('I understand "Open and run" trades real money.')}</span>
                         </label>
                     )}
-                    <button type='button' className='vd-primary-button' disabled={busy || problems.length > 0} onClick={() => open('LOAD')}>
+                    <button
+                        type='button'
+                        className='vd-primary-button'
+                        disabled={busy || problems.length > 0}
+                        onClick={() => open('LOAD')}
+                    >
                         {busy ? localize('Building…') : localize('Open in Bot Builder')}
                     </button>
                     <button
@@ -225,7 +343,9 @@ const QuickBot = observer(() => {
                         ▶ {localize('Open and run')}
                     </button>
                     <p className='vd-card__text'>
-                        {localize('To keep the bot as a file, use the Save button in the Bot Builder toolbar after it opens.')}
+                        {localize(
+                            'To keep the bot as a file, use the Save button in the Bot Builder toolbar after it opens.'
+                        )}
                     </p>
                     {error && (
                         <p role='alert' className='vd-message vd-message--error'>
