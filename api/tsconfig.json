@@ -1,0 +1,14 @@
+{
+    "//": "Vercel functions in /api run on Node as CommonJS; the root tsconfig targets the browser bundle.",
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "CommonJS",
+        "moduleResolution": "node",
+        "esModuleInterop": true,
+        "strict": true,
+        "skipLibCheck": true,
+        "resolveJsonModule": true
+    },
+    "include": ["./**/*.ts", "../src/services/vindolar/free-bots-schema.ts"],
+    "exclude": ["./**/__tests__/**"]
+}
