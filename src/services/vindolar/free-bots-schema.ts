@@ -6,8 +6,11 @@
 export type TBotConfigValue = string | number;
 
 /** Bot lists the owner manages; each page shows one. */
-export const BOT_COLLECTIONS = ['free', 'premium', 'premium-ai'] as const;
+export const BOT_COLLECTIONS = ['free', 'premium', 'premium-ai', 'premium-ai-presets'] as const;
 export type TBotCollection = (typeof BOT_COLLECTIONS)[number];
+
+/** Lists a Bot Builder bot can be published to ("premium-ai-presets" holds the owner's preset settings). */
+export const PUBLISH_COLLECTIONS: TBotCollection[] = ['free', 'premium', 'premium-ai'];
 
 export const isBotCollection = (value: unknown): value is TBotCollection =>
     typeof value === 'string' && (BOT_COLLECTIONS as readonly string[]).includes(value);

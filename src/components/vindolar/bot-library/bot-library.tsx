@@ -1,13 +1,14 @@
 import React from 'react';
 import classNames from 'classnames';
 import { observer } from 'mobx-react-lite';
+import ReactDOM from 'react-dom';
 import { DBOT_TABS } from '@/constants/bot-contents';
 import { load, save_types } from '@/external/bot-skeleton';
 import { useStore } from '@/hooks/useStore';
 import { loadBot, STRATEGY_LABELS, TBotConfig, TStrategyKey } from '@/services/vindolar/bot-loader';
 import { builtInBots } from '@/services/vindolar/built-in-bots';
 import { fetchPublishedBots, publishBots, useOwner } from '@/services/vindolar/free-bots-api';
-import { BOT_COLLECTIONS, TBotCollection, TStoredBot } from '@/services/vindolar/free-bots-schema';
+import { PUBLISH_COLLECTIONS, TBotCollection, TStoredBot } from '@/services/vindolar/free-bots-schema';
 import { LabelPairedArrowUpRightCaptionRegularIcon } from '@deriv/quill-icons/LabelPaired';
 import { localize } from '@deriv-com/translations';
 import { consumePendingPublish } from './publish-request';
@@ -17,6 +18,7 @@ export const COLLECTION_NAMES: Record<TBotCollection, string> = {
     free: 'Free Bots',
     premium: 'Premium Bots',
     'premium-ai': 'Premium AI Bots',
+    'premium-ai-presets': 'Premium AI presets',
 };
 
 /** The tab each list lives on (where "Load bot" errors send the user back to). */
@@ -24,6 +26,7 @@ const COLLECTION_TABS: Record<TBotCollection, number> = {
     free: DBOT_TABS.FREE_BOTS,
     premium: DBOT_TABS.QUICK_BOT,
     'premium-ai': DBOT_TABS.PATTERN_BOTS,
+    'premium-ai-presets': DBOT_TABS.PATTERN_BOTS,
 };
 
 export const tabForCollection = (collection: TBotCollection) => COLLECTION_TABS[collection];
@@ -134,7 +137,8 @@ const BotEditor = ({
         onSave(next, draft.destination);
     };
 
-    return (
+    // Rendered on <body>: the tool pages are their own layer, which would put the cards on top of the form.
+    return ReactDOM.createPortal(
         <div className='vd-fb-admin__backdrop' role='presentation' onClick={onCancel}>
             <form
                 className='vd-fb-admin__dialog'
@@ -193,7 +197,7 @@ const BotEditor = ({
                     <label>
                         <span>{localize('Publish to')}</span>
                         <select value={draft.destination} onChange={set('destination')}>
-                            {BOT_COLLECTIONS.map(id => (
+                            {PUBLISH_COLLECTIONS.map(id => (
                                 <option key={id} value={id}>
                                     {localize(COLLECTION_NAMES[id])}
                                 </option>
@@ -227,7 +231,8 @@ const BotEditor = ({
                     </button>
                 </div>
             </form>
-        </div>
+        </div>,
+        document.body
     );
 };
 
