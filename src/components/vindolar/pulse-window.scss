@@ -199,3 +199,20 @@ li#id-market-scanner,
         outline-offset: 2px;
     }
 }
+
+// The AI Scanner button can be dragged anywhere (mouse or finger).
+.vd-scanner-fab {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-drag: none;
+
+    &:active {
+        cursor: grabbing;
+    }
+
+    img {
+        pointer-events: none;
+        -webkit-user-drag: none;
+    }
+}

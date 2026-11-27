@@ -2,6 +2,7 @@ import React from 'react';
 import classNames from 'classnames';
 import { observer } from 'mobx-react-lite';
 import { DBOT_TABS } from '@/constants/bot-contents';
+import { useDraggable } from '@/hooks/useDraggable';
 import { useMarketDataStatus, useTicks, useVolatilitySymbols } from '@/hooks/useMarketData';
 import { usePersistentState } from '@/hooks/usePersistentState';
 import { useStore } from '@/hooks/useStore';
@@ -178,6 +179,38 @@ const FloatingScanner = observer(({ lifted, beside_drawer }: { lifted: boolean; 
     const [view, setView] = usePersistentState<'markets' | 'test'>('vd_scanner_view', 'markets');
     const [rows, setRows] = React.useState<Record<string, TRow>>({});
     const panel_ref = React.useRef<HTMLDivElement>(null);
+    // The AI Scanner button can be dragged anywhere on the screen; double-click puts it back.
+    const fab = useDraggable<HTMLButtonElement>('vd_scanner_fab_position');
+    const [panel_style, setPanelStyle] = React.useState<React.CSSProperties | undefined>();
+
+    // Once the button has been moved, open the panel beside it, on whichever side has room.
+    React.useLayoutEffect(() => {
+        const button = fab.ref.current;
+        if (!open || !fab.position || !button) {
+            setPanelStyle(undefined);
+            return;
+        }
+        const rect = button.getBoundingClientRect();
+        const gap = 8;
+        const margin = 8;
+        const width = Math.min(420, window.innerWidth - margin * 2);
+        const room_above = rect.top - gap - margin;
+        const room_below = window.innerHeight - rect.bottom - gap - margin;
+        const open_up = room_above >= room_below;
+        const left = Math.min(
+            Math.max(rect.left + rect.width / 2 > window.innerWidth / 2 ? rect.right - width : rect.left, margin),
+            window.innerWidth - width - margin
+        );
+        setPanelStyle({
+            left,
+            width,
+            right: 'auto',
+            insetInlineEnd: 'auto',
+            ...(open_up
+                ? { bottom: window.innerHeight - rect.top + gap, top: 'auto', maxHeight: room_above }
+                : { top: rect.bottom + gap, bottom: 'auto', maxHeight: room_below }),
+        });
+    }, [open, fab.position, fab.ref]);
 
     const onUpdate = React.useCallback(
         (row: TRow) => setRows(previous => ({ ...previous, [row.market.symbol]: row })),
@@ -233,14 +266,23 @@ const FloatingScanner = observer(({ lifted, beside_drawer }: { lifted: boolean; 
         <>
             <button
                 type='button'
+                ref={fab.ref}
+                style={fab.style}
+                title={localize('Drag to move · double-click to put back')}
+                {...fab.handlers}
+                onDoubleClick={fab.reset}
                 className={classNames('vd-scanner-fab', {
-                    'vd-scanner-fab--lifted': lifted,
-                    'vd-scanner-fab--beside-drawer': beside_drawer,
+                    'vd-scanner-fab--lifted': lifted && !fab.position,
+                    'vd-scanner-fab--beside-drawer': beside_drawer && !fab.position,
+                    'vd-scanner-fab--placed': Boolean(fab.position),
                     'is-open': open,
                 })}
                 aria-expanded={open}
                 aria-controls='vd-scanner-panel'
-                onClick={() => setOpen(v => !v)}
+                onClick={() => {
+                    if (fab.consumeDrag()) return;
+                    setOpen(v => !v);
+                }}
             >
                 <span className='vd-scanner-fab__icon' aria-hidden='true'>
                     <img src='/assets/ai-scanner.png' alt='' />
@@ -257,9 +299,10 @@ const FloatingScanner = observer(({ lifted, beside_drawer }: { lifted: boolean; 
                     id='vd-scanner-panel'
                     ref={panel_ref}
                     tabIndex={-1}
+                    style={panel_style}
                     className={classNames('vd-scanner-panel', {
-                        'vd-scanner-panel--lifted': lifted,
-                        'vd-scanner-panel--beside-drawer': beside_drawer,
+                        'vd-scanner-panel--lifted': lifted && !panel_style,
+                        'vd-scanner-panel--beside-drawer': beside_drawer && !panel_style,
                     })}
                     role='dialog'
                     aria-label={localize('Scanner')}
