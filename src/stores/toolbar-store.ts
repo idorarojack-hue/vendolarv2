@@ -100,12 +100,21 @@ export default class ToolbarStore implements IToolbarStore {
     };
 
     onUndoClick = (is_redo: boolean): void => {
+        const workspace = window.Blockly.derivWorkspace;
         window.Blockly.Events.setGroup('undo_clicked');
-        window.Blockly.derivWorkspace.undo(is_redo);
-        window.Blockly.svgResize(window.Blockly.derivWorkspace); // Called for CommentDelete event.
-        this.setHasRedoStack();
-        this.setHasUndoStack();
-        window.Blockly.Events.setGroup(false);
+        try {
+            workspace.undo(is_redo);
+            window.Blockly.svgResize(workspace); // Called for CommentDelete event.
+        } catch (error) {
+            // A step that points at a block which no longer exists can't be replayed, and it would
+            // make every later Undo / Redo fail too. Start a clean history instead.
+            console.warn('Undo/redo history was out of date and has been cleared.', error);
+            workspace.clearUndo();
+        } finally {
+            this.setHasRedoStack();
+            this.setHasUndoStack();
+            window.Blockly.Events.setGroup(false);
+        }
     };
 
     onZoomInOutClick = (is_zoom_in: boolean): void => {

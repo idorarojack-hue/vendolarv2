@@ -11,6 +11,7 @@ import { TMarketSymbol } from '@/services/vindolar/market-data';
 import { STRATEGY_CATALOG } from '@/services/vindolar/strategy-catalog';
 import { runStrategyTest, TStrategyTestResult } from '@/services/vindolar/strategy-test-runner';
 import { localize } from '@deriv-com/translations';
+import { openPulseScanner } from './pulse-window';
 import './vindolar.scss';
 import '../../pages/analysis-tools/analysis-tools.scss';
 import '../../pages/strategy-tester/strategy-tester.scss';
@@ -26,7 +27,8 @@ type TRow = { market: TMarketSymbol; unusual: TUnusualness; streak: string; stre
 
 // Green: even, digits 5–9, a digit showing up more than its fair 10%.
 // Red: odd, digits 0–4, a digit showing up less than its fair 10%.
-const toneForKind = (kind: string): TTone => (kind === 'even' || kind === 'over' || kind.endsWith('-hot') ? 'up' : 'down');
+const toneForKind = (kind: string): TTone =>
+    kind === 'even' || kind === 'over' || kind.endsWith('-hot') ? 'up' : 'down';
 
 /** Watches one market and reports its stats to the panel (renders nothing itself). */
 const Watch = ({ market, onUpdate }: { market: TMarketSymbol; onUpdate: (row: TRow) => void }) => {
@@ -77,7 +79,14 @@ const QuickTest = observer(({ default_symbol }: { default_symbol: string }) => {
                     tick_count: 5000,
                     duration: 5,
                     // Flat stake, no limits: measures the strategy's raw edge.
-                    settings: { stake: 1, take_profit: 1e9, stop_loss: 1e9, martingale: false, multiplier: 2, max_stake: 1 },
+                    settings: {
+                        stake: 1,
+                        take_profit: 1e9,
+                        stop_loss: 1e9,
+                        martingale: false,
+                        multiplier: 2,
+                        max_stake: 1,
+                    },
                     currency,
                     onProgress: m => setProgress(localize(m)),
                 })
@@ -92,7 +101,11 @@ const QuickTest = observer(({ default_symbol }: { default_symbol: string }) => {
     const z = result ? edgeZScore(result) : 0;
     return (
         <div className='vd-scanner-panel__quick'>
-            <p className='vd-card__text'>{localize('Replay a strategy on the last 5,000 ticks with a flat 1 USD stake, using your real payouts.')}</p>
+            <p className='vd-card__text'>
+                {localize(
+                    'Replay a strategy on the last 5,000 ticks with a flat 1 USD stake, using your real payouts.'
+                )}
+            </p>
             <label className='vd-number'>
                 <span className='vd-field__label'>{localize('Strategy')}</span>
                 <select className='vd-select' value={strategy_id} onChange={e => setStrategyId(e.target.value)}>
@@ -118,10 +131,15 @@ const QuickTest = observer(({ default_symbol }: { default_symbol: string }) => {
             </button>
             {error && <p className='vd-message vd-message--error'>{error}</p>}
             {result && (
-                <div className={classNames('vd-tester__verdict', result.return_on_staked < 0 ? 'vd-tester__verdict--bad' : 'vd-tester__verdict--good')}>
+                <div
+                    className={classNames(
+                        'vd-tester__verdict',
+                        result.return_on_staked < 0 ? 'vd-tester__verdict--bad' : 'vd-tester__verdict--good'
+                    )}
+                >
                     <span className='vd-field__label'>
-                        {result.trades.length.toLocaleString()} {localize('trades')} · {localize('win rate')} {result.win_rate.toFixed(1)}% ·{' '}
-                        {localize('break-even')} {result.breakeven_win_rate.toFixed(1)}%
+                        {result.trades.length.toLocaleString()} {localize('trades')} · {localize('win rate')}{' '}
+                        {result.win_rate.toFixed(1)}% · {localize('break-even')} {result.breakeven_win_rate.toFixed(1)}%
                     </span>
                     <strong>
                         {result.return_on_staked > 0 ? '+' : ''}
@@ -131,12 +149,19 @@ const QuickTest = observer(({ default_symbol }: { default_symbol: string }) => {
                         {result.trades.length < 100
                             ? localize('Too few trades to judge.')
                             : result.return_on_staked < 0
-                              ? localize('Loses on average — what the house edge predicts (z = {{z}}).', { z: z.toFixed(1) })
+                              ? localize('Loses on average — what the house edge predicts (z = {{z}}).', {
+                                    z: z.toFixed(1),
+                                })
                               : Math.abs(z) < 2
-                              ? localize('Within normal luck (z = {{z}}): no evidence of an edge.', { z: z.toFixed(1) })
-                              : z > 0
-                                ? localize('Above chance on this sample (z = {{z}}). Re-test on other markets before trusting it.', { z: z.toFixed(1) })
-                                : localize('Below chance on this sample (z = {{z}}).', { z: z.toFixed(1) })}
+                                ? localize('Within normal luck (z = {{z}}): no evidence of an edge.', {
+                                      z: z.toFixed(1),
+                                  })
+                                : z > 0
+                                  ? localize(
+                                        'Above chance on this sample (z = {{z}}). Re-test on other markets before trusting it.',
+                                        { z: z.toFixed(1) }
+                                    )
+                                  : localize('Below chance on this sample (z = {{z}}).', { z: z.toFixed(1) })}
                     </p>
                 </div>
             )}
@@ -154,7 +179,10 @@ const FloatingScanner = observer(({ lifted, beside_drawer }: { lifted: boolean; 
     const [rows, setRows] = React.useState<Record<string, TRow>>({});
     const panel_ref = React.useRef<HTMLDivElement>(null);
 
-    const onUpdate = React.useCallback((row: TRow) => setRows(previous => ({ ...previous, [row.market.symbol]: row })), []);
+    const onUpdate = React.useCallback(
+        (row: TRow) => setRows(previous => ({ ...previous, [row.market.symbol]: row })),
+        []
+    );
 
     // Other pages (e.g. Bulk Trader's "Market scanner" button) open the panel with this event.
     React.useEffect(() => {
@@ -179,7 +207,10 @@ const FloatingScanner = observer(({ lifted, beside_drawer }: { lifted: boolean; 
     const trade = (row: TRow) => {
         try {
             const saved = JSON.parse(localStorage.getItem('vd_manual_trader_settings') ?? '{}');
-            localStorage.setItem('vd_manual_trader_settings', JSON.stringify({ ...saved, ...presetForKind(row.unusual.kind), duration: 1 }));
+            localStorage.setItem(
+                'vd_manual_trader_settings',
+                JSON.stringify({ ...saved, ...presetForKind(row.unusual.kind), duration: 1 })
+            );
             localStorage.setItem('vd_manual_trader_symbol', row.market.symbol);
         } catch {
             // Opens with the last settings if storage is unavailable.
@@ -202,7 +233,11 @@ const FloatingScanner = observer(({ lifted, beside_drawer }: { lifted: boolean; 
         <>
             <button
                 type='button'
-                className={classNames('vd-scanner-fab', { 'vd-scanner-fab--lifted': lifted, 'vd-scanner-fab--beside-drawer': beside_drawer, 'is-open': open })}
+                className={classNames('vd-scanner-fab', {
+                    'vd-scanner-fab--lifted': lifted,
+                    'vd-scanner-fab--beside-drawer': beside_drawer,
+                    'is-open': open,
+                })}
                 aria-expanded={open}
                 aria-controls='vd-scanner-panel'
                 onClick={() => setOpen(v => !v)}
@@ -222,7 +257,10 @@ const FloatingScanner = observer(({ lifted, beside_drawer }: { lifted: boolean; 
                     id='vd-scanner-panel'
                     ref={panel_ref}
                     tabIndex={-1}
-                    className={classNames('vd-scanner-panel', { 'vd-scanner-panel--lifted': lifted, 'vd-scanner-panel--beside-drawer': beside_drawer })}
+                    className={classNames('vd-scanner-panel', {
+                        'vd-scanner-panel--lifted': lifted,
+                        'vd-scanner-panel--beside-drawer': beside_drawer,
+                    })}
                     role='dialog'
                     aria-label={localize('Scanner')}
                 >
@@ -233,19 +271,53 @@ const FloatingScanner = observer(({ lifted, beside_drawer }: { lifted: boolean; 
                         <div>
                             <h2>{localize('Scanner')}</h2>
                             <span className={classNames('vd-live', { 'vd-live--off': !is_connected })}>
-                                {is_connected ? localize('{{n}} markets live', { n: symbols.length }) : localize('Connecting…')}
+                                {is_connected
+                                    ? localize('{{n}} markets live', { n: symbols.length })
+                                    : localize('Connecting…')}
                             </span>
                         </div>
-                        <button type='button' className='vd-scanner-panel__close' aria-label={localize('Close scanner')} onClick={() => setOpen(false)}>
+                        <button
+                            type='button'
+                            className='vd-scanner-panel__close'
+                            aria-label={localize('Close scanner')}
+                            onClick={() => setOpen(false)}
+                        >
                             ×
                         </button>
                     </header>
 
+                    <button
+                        type='button'
+                        className='vd-scanner-panel__pulse'
+                        onClick={() => {
+                            openPulseScanner();
+                            setOpen(false);
+                        }}
+                    >
+                        <span>
+                            <strong>{localize('Open Pulse AI Scanner')}</strong>
+                            <small>{localize('Full scanner with auto trading, in a window you can move')}</small>
+                        </span>
+                        <span aria-hidden='true'>↗</span>
+                    </button>
+
                     <div className='vd-segmented' role='tablist'>
-                        <button type='button' role='tab' aria-selected={view === 'markets'} className={classNames({ 'is-active': view === 'markets' })} onClick={() => setView('markets')}>
+                        <button
+                            type='button'
+                            role='tab'
+                            aria-selected={view === 'markets'}
+                            className={classNames({ 'is-active': view === 'markets' })}
+                            onClick={() => setView('markets')}
+                        >
                             {localize('Markets')}
                         </button>
-                        <button type='button' role='tab' aria-selected={view === 'test'} className={classNames({ 'is-active': view === 'test' })} onClick={() => setView('test')}>
+                        <button
+                            type='button'
+                            role='tab'
+                            aria-selected={view === 'test'}
+                            className={classNames({ 'is-active': view === 'test' })}
+                            onClick={() => setView('test')}
+                        >
                             {localize('Quick test')}
                         </button>
                     </div>
@@ -259,35 +331,62 @@ const FloatingScanner = observer(({ lifted, beside_drawer }: { lifted: boolean; 
                                 )}
                             </p>
                             <ul className='vd-scanner-panel__list'>
-                                {ranked.length === 0 && <li className='vd-card__text'>{localize('Loading markets…')}</li>}
+                                {ranked.length === 0 && (
+                                    <li className='vd-card__text'>{localize('Loading markets…')}</li>
+                                )}
                                 {ranked.map(row => (
                                     <li key={row.market.symbol}>
                                         <div className='vd-scanner-panel__row-main'>
                                             <strong>{row.market.name}</strong>
-                                            <span className={classNames('vd-scanner-panel__finding', toneForKind(row.unusual.kind) === 'up' ? 'is-up' : 'is-down')}>
+                                            <span
+                                                className={classNames(
+                                                    'vd-scanner-panel__finding',
+                                                    toneForKind(row.unusual.kind) === 'up' ? 'is-up' : 'is-down'
+                                                )}
+                                            >
                                                 {row.unusual.label}
                                             </span>
-                                            <small className={classNames('vd-scanner-panel__streak', row.streak_tone === 'up' ? 'is-up' : 'is-down')}>
+                                            <small
+                                                className={classNames(
+                                                    'vd-scanner-panel__streak',
+                                                    row.streak_tone === 'up' ? 'is-up' : 'is-down'
+                                                )}
+                                            >
                                                 {row.streak}
                                                 {' · '}
                                                 {localize('last')}{' '}
                                                 <span className='vd-scanner-panel__digits'>
                                                     {row.last.map((digit, index) => (
-                                                        <b key={`${row.market.symbol}-${index}`} className={digit % 2 === 0 ? 'is-even' : 'is-odd'}>
+                                                        <b
+                                                            key={`${row.market.symbol}-${index}`}
+                                                            className={digit % 2 === 0 ? 'is-even' : 'is-odd'}
+                                                        >
                                                             {digit}
                                                         </b>
                                                     ))}
                                                 </span>
                                             </small>
                                         </div>
-                                        <span className={classNames('vd-scanner-panel__score', { 'is-high': row.unusual.score >= 2 })}>
+                                        <span
+                                            className={classNames('vd-scanner-panel__score', {
+                                                'is-high': row.unusual.score >= 2,
+                                            })}
+                                        >
                                             {row.unusual.score.toFixed(1)}σ
                                         </span>
                                         <div className='vd-scanner-panel__actions'>
-                                            <button type='button' className='vd-session__reset' onClick={() => trade(row)}>
+                                            <button
+                                                type='button'
+                                                className='vd-session__reset'
+                                                onClick={() => trade(row)}
+                                            >
                                                 {localize('Trade')}
                                             </button>
-                                            <button type='button' className='vd-session__reset' onClick={() => test(row)}>
+                                            <button
+                                                type='button'
+                                                className='vd-session__reset'
+                                                onClick={() => test(row)}
+                                            >
                                                 {localize('Test')}
                                             </button>
                                         </div>

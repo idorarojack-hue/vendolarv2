@@ -11,6 +11,7 @@ import Tabs from '@/components/shared_ui/tabs/tabs';
 import TradeTypeConfirmationModal from '@/components/trade-type-confirmation-modal';
 import TradingViewModal from '@/components/trading-view-chart/trading-view-modal';
 import FloatingScanner from '@/components/vindolar/floating-scanner';
+import PulseWindow, { openPulseScanner } from '@/components/vindolar/pulse-window';
 import { DBOT_TABS, LAST_TAB_ID, NAV_TABS, TAB_HASHES, TAB_IDS, TNavTabKey } from '@/constants/bot-contents';
 import { api_base, updateWorkspaceName } from '@/external/bot-skeleton';
 import { CONNECTION_STATUS } from '@/external/bot-skeleton/services/api/observables/connection-status-stream';
@@ -195,6 +196,19 @@ const AppWrapper = observer(() => {
             strip.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
         });
         return () => cancelAnimationFrame(frame);
+    }, [active_tab]);
+
+    // The Pulse AI Scanner lives in a floating window now. Anything that opens its old tab
+    // (tool cards, #market_scanner links, the status bar) opens the window and stays on the last tab.
+    const previous_tab = React.useRef(DBOT_TABS.DASHBOARD);
+    React.useEffect(() => {
+        if (active_tab === DBOT_TABS.MARKET_SCANNER) {
+            openPulseScanner();
+            setActiveTab(previous_tab.current);
+            return;
+        }
+        previous_tab.current = active_tab;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active_tab]);
 
     // Follow the url hash (links, browser back/forward, typed urls): open the tab it names.
@@ -615,6 +629,7 @@ const AppWrapper = observer(() => {
             </MobileWrapper>
             <GlobalStatus has_bot_bar={show_bot_controls} />
             <FloatingScanner lifted={show_bot_controls} beside_drawer={isDesktop && is_drawer_open} />
+            <PulseWindow />
             <Dialog
                 cancel_button_text={cancel_button_text || localize('Cancel')}
                 className='dc-dialog__wrapper--fixed'

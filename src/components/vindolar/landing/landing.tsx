@@ -3,6 +3,7 @@ import { generateOAuthURL } from '@/components/shared';
 import MarketTicker from '@/components/vindolar/market-ticker';
 import { RiskDialog } from '@/pages/main/global-status';
 import { localize } from '@deriv-com/translations';
+import { REVIEWS, TReview } from './reviews';
 import './landing.scss';
 
 type TFeature = {
@@ -21,37 +22,49 @@ const FEATURES = (): TFeature[] => [
         icon: 'BB',
         tool: localize('Bot Builder'),
         tag: localize('No code'),
-        text: localize('Drag blocks together to build a bot: market, entry rules, stake and limits. Save it, load it later or start from a ready-made strategy.'),
+        text: localize(
+            'Drag blocks together to build a bot: market, entry rules, stake and limits. Save it, load it later or start from a ready-made strategy.'
+        ),
     },
     {
         icon: 'AT',
         tool: localize('Analysis Tools'),
         tag: localize('Live data'),
-        text: localize('Last-digit statistics update tick by tick across every Volatility index, ranked so the most and least frequent digits stand out.'),
+        text: localize(
+            'Last-digit statistics update tick by tick across every Volatility index, ranked so the most and least frequent digits stand out.'
+        ),
     },
     {
         icon: 'ST',
         tool: localize('Confluence AI'),
         tag: localize('Back-test'),
-        text: localize('Replay a strategy on up to 20,000 real ticks before you trade it, with the win rate, break-even line and equity curve.'),
+        text: localize(
+            'Replay a strategy on up to 20,000 real ticks before you trade it, with the win rate, break-even line and equity curve.'
+        ),
     },
     {
         icon: 'AS',
         tool: localize('Auto Trading'),
         tag: localize('Automation'),
-        text: localize('Run a strategy hands-free with a take profit and a stop loss that cannot be skipped, plus a daily loss limit.'),
+        text: localize(
+            'Run a strategy hands-free with a take profit and a stop loss that cannot be skipped, plus a daily loss limit.'
+        ),
     },
     {
         icon: 'MS',
         tool: localize('Pulse AI Scanner'),
         tag: localize('Scanner'),
-        text: localize('Scan every synthetic market at once and jump to the one whose digit pattern matches your rules.'),
+        text: localize(
+            'Scan every synthetic market at once and jump to the one whose digit pattern matches your rules.'
+        ),
     },
     {
         icon: 'RP',
         tool: localize('Reports'),
         tag: localize('Track'),
-        text: localize('Every contract from every tool in one place, with your profit table and statement pulled from Deriv.'),
+        text: localize(
+            'Every contract from every tool in one place, with your profit table and statement pulled from Deriv.'
+        ),
     },
 ];
 
@@ -59,12 +72,42 @@ type TTool = { icon: string; title: string; text: string; hash: string };
 
 /** Tool cards; clicking one opens that tab in the workspace. */
 const TOOLS = (): TTool[] => [
-    { icon: '♧', title: localize('Free Bot Library'), text: localize('Load classic strategies into the builder. No coding needed.'), hash: 'free_bots' },
-    { icon: '↺', title: localize('TickPulse'), text: localize('Switches market or contract after a loss, inside your stop loss.'), hash: 'recovery_trader' },
-    { icon: '⌕', title: localize('Market Analysis'), text: localize('Digit circles, tick history and live statistics for every index.'), hash: 'analysis_tools' },
-    { icon: '◴', title: localize('Speedbot'), text: localize('Fast one-tap trading with a session limit on every run.'), hash: 'speed_trader' },
-    { icon: '▥', title: localize('Charts'), text: localize('Full charts with technical indicators for your own research.'), hash: 'chart' },
-    { icon: '⚙', title: localize('Bot Builder'), text: localize('Visual drag-and-drop builder. Test your logic on demo first.'), hash: 'bot_builder' },
+    {
+        icon: '♧',
+        title: localize('Free Bot Library'),
+        text: localize('Load classic strategies into the builder. No coding needed.'),
+        hash: 'free_bots',
+    },
+    {
+        icon: '↺',
+        title: localize('TickPulse'),
+        text: localize('Switches market or contract after a loss, inside your stop loss.'),
+        hash: 'recovery_trader',
+    },
+    {
+        icon: '⌕',
+        title: localize('Market Analysis'),
+        text: localize('Digit circles, tick history and live statistics for every index.'),
+        hash: 'analysis_tools',
+    },
+    {
+        icon: '◴',
+        title: localize('Speedbot'),
+        text: localize('Fast one-tap trading with a session limit on every run.'),
+        hash: 'speed_trader',
+    },
+    {
+        icon: '▥',
+        title: localize('Charts'),
+        text: localize('Full charts with technical indicators for your own research.'),
+        hash: 'chart',
+    },
+    {
+        icon: '⚙',
+        title: localize('Bot Builder'),
+        text: localize('Visual drag-and-drop builder. Test your logic on demo first.'),
+        hash: 'bot_builder',
+    },
 ];
 
 const redirectToDeriv = async (prompt?: string) => {
@@ -75,6 +118,11 @@ const redirectToDeriv = async (prompt?: string) => {
 
 const FeatureCarousel = () => {
     const features = React.useMemo(FEATURES, []);
+    // Real customer reviews (reviews.ts) replace the tool cards once there are any.
+    const reviews: TReview[] = REVIEWS;
+    const show_reviews = reviews.length > 0;
+    const slide_count = show_reviews ? reviews.length : features.length;
+    const slide_labels = show_reviews ? reviews.map(r => r.name) : features.map(f => f.tool);
     const track_ref = React.useRef<HTMLDivElement>(null);
     const [index, setIndex] = React.useState(0);
     const [is_paused, setIsPaused] = React.useState(false);
@@ -118,46 +166,101 @@ const FeatureCarousel = () => {
             onFocus={() => setIsPaused(true)}
             onBlur={() => setIsPaused(false)}
         >
-            <h2 id='vd-landing-inside-title'>{localize('What’s inside Vindolar')}</h2>
+            <h2 id='vd-landing-inside-title'>
+                {show_reviews ? localize('What traders say') : localize('What’s inside Vindolar')}
+            </h2>
 
             <div className='vd-landing__track' ref={track_ref} onScroll={onScroll}>
-                {features.map((feature, i) => (
-                    <article
-                        key={feature.tool}
-                        className='vd-landing__card'
-                        aria-roledescription='slide'
-                        aria-label={`${i + 1} / ${features.length}`}
-                    >
-                        <p>{feature.text}</p>
-                        <footer>
-                            <span className='vd-landing__avatar' aria-hidden='true'>
-                                {feature.icon}
-                            </span>
-                            <span>
-                                <strong>{feature.tool}</strong>
-                                <small>{localize('Vindolar tool')}</small>
-                            </span>
-                            <span className='vd-landing__tag'>{feature.tag}</span>
-                        </footer>
-                    </article>
-                ))}
+                {show_reviews
+                    ? reviews.map((review, i) => (
+                          <article
+                              key={`${review.name}-${i}`}
+                              className='vd-landing__card vd-landing__card--review'
+                              aria-roledescription='slide'
+                              aria-label={`${i + 1} / ${slide_count}`}
+                          >
+                              <span
+                                  className='vd-landing__stars'
+                                  role='img'
+                                  aria-label={localize('{{rating}} out of 5 stars', {
+                                      rating: Math.min(5, Math.max(1, Math.round(review.rating))),
+                                  })}
+                              >
+                                  {Array.from({ length: 5 }, (_, star) => (
+                                      <i
+                                          key={star}
+                                          aria-hidden='true'
+                                          className={star < Math.round(review.rating) ? 'is-on' : ''}
+                                      >
+                                          ★
+                                      </i>
+                                  ))}
+                              </span>
+                              <p>“{review.text}”</p>
+                              <footer>
+                                  <span className='vd-landing__avatar' aria-hidden='true'>
+                                      {review.name
+                                          .split(/\s+/)
+                                          .map(part => part[0])
+                                          .join('')
+                                          .slice(0, 2)
+                                          .toUpperCase()}
+                                  </span>
+                                  <span>
+                                      <strong>{review.name}</strong>
+                                      <small>{review.country ?? localize('Vindolar user')}</small>
+                                  </span>
+                              </footer>
+                          </article>
+                      ))
+                    : features.map((feature, i) => (
+                          <article
+                              key={feature.tool}
+                              className='vd-landing__card'
+                              aria-roledescription='slide'
+                              aria-label={`${i + 1} / ${slide_count}`}
+                          >
+                              <p>{feature.text}</p>
+                              <footer>
+                                  <span className='vd-landing__avatar' aria-hidden='true'>
+                                      {feature.icon}
+                                  </span>
+                                  <span>
+                                      <strong>{feature.tool}</strong>
+                                      <small>{localize('Vindolar tool')}</small>
+                                  </span>
+                                  <span className='vd-landing__tag'>{feature.tag}</span>
+                              </footer>
+                          </article>
+                      ))}
             </div>
 
             <div className='vd-landing__dots'>
-                <button type='button' className='vd-landing__arrow' aria-label={localize('Previous')} onClick={() => goTo(index - 1)} disabled={index === 0}>
+                <button
+                    type='button'
+                    className='vd-landing__arrow'
+                    aria-label={localize('Previous')}
+                    onClick={() => goTo(index - 1)}
+                    disabled={index === 0}
+                >
                     ‹
                 </button>
-                {features.map((feature, i) => (
+                {slide_labels.map((label, i) => (
                     <button
-                        key={feature.tool}
+                        key={`${label}-${i}`}
                         type='button'
-                        aria-label={feature.tool}
+                        aria-label={label}
                         aria-current={i === index}
                         className={i === index ? 'is-active' : ''}
                         onClick={() => goTo(i)}
                     />
                 ))}
-                <button type='button' className='vd-landing__arrow' aria-label={localize('Next')} onClick={() => goTo(index + 1)}>
+                <button
+                    type='button'
+                    className='vd-landing__arrow'
+                    aria-label={localize('Next')}
+                    onClick={() => goTo(index + 1)}
+                >
                     ›
                 </button>
             </div>
@@ -226,10 +329,20 @@ const Landing = ({ onExplore }: TLandingProps) => {
                     </button>
                 </nav>
                 <div className='vd-landing__actions'>
-                    <button type='button' className='vd-landing__btn vd-landing__btn--outline' onClick={() => go('login')} disabled={!!busy}>
+                    <button
+                        type='button'
+                        className='vd-landing__btn vd-landing__btn--outline'
+                        onClick={() => go('login')}
+                        disabled={!!busy}
+                    >
                         {busy === 'login' ? opening : localize('Log In')}
                     </button>
-                    <button type='button' className='vd-landing__btn vd-landing__btn--orange' onClick={() => go('signup')} disabled={!!busy}>
+                    <button
+                        type='button'
+                        className='vd-landing__btn vd-landing__btn--orange'
+                        onClick={() => go('signup')}
+                        disabled={!!busy}
+                    >
                         {busy === 'signup' ? opening : localize('Get Started')}
                     </button>
                 </div>
@@ -250,25 +363,42 @@ const Landing = ({ onExplore }: TLandingProps) => {
 
             <main>
                 <section className='vd-landing__hero' aria-labelledby='vd-landing-title'>
-                    <div className='vd-landing__scene' aria-hidden='true' style={{ backgroundImage: "url('/vindolar-scene.svg')" }} />
+                    <div
+                        className='vd-landing__scene'
+                        aria-hidden='true'
+                        style={{ backgroundImage: "url('/vindolar-scene.svg')" }}
+                    />
                     <div className='vd-landing__hero-content'>
                         <h1 id='vd-landing-title'>{localize('Bots you can test before you trust')}</h1>
                         <p className='vd-landing__subtitle'>
-                            {localize('Build a bot without code, check it on real tick history and run it with a stop loss that cannot be skipped.')}
+                            {localize(
+                                'Build a bot without code, check it on real tick history and run it with a stop loss that cannot be skipped.'
+                            )}
                         </p>
                         <div className='vd-landing__ctas'>
-                            <button type='button' className='vd-landing__btn vd-landing__btn--orange vd-landing__btn--hero' onClick={() => go('login')} disabled={!!busy}>
+                            <button
+                                type='button'
+                                className='vd-landing__btn vd-landing__btn--orange vd-landing__btn--hero'
+                                onClick={() => go('login')}
+                                disabled={!!busy}
+                            >
                                 <span aria-hidden='true'>⌁</span>
                                 {busy === 'login' ? opening : localize('Log In and Trade')}
                                 <span aria-hidden='true'>›</span>
                             </button>
-                            <button type='button' className='vd-landing__btn vd-landing__btn--dark vd-landing__btn--hero' onClick={() => go('signup')} disabled={!!busy}>
+                            <button
+                                type='button'
+                                className='vd-landing__btn vd-landing__btn--dark vd-landing__btn--hero'
+                                onClick={() => go('signup')}
+                                disabled={!!busy}
+                            >
                                 <span aria-hidden='true'>ϟ</span>
                                 {busy === 'signup' ? opening : localize('Create Free Account')}
                             </button>
                         </div>
                         <button type='button' className='vd-landing__explore' onClick={onExplore}>
-                            {localize('Just looking?')} <strong>{localize('Explore the tools without an account')}</strong>
+                            {localize('Just looking?')}{' '}
+                            <strong>{localize('Explore the tools without an account')}</strong>
                             <span aria-hidden='true'>›</span>
                         </button>
                     </div>
@@ -283,7 +413,12 @@ const Landing = ({ onExplore }: TLandingProps) => {
                     </div>
                     <div className='vd-landing__grid'>
                         {tools.map(tool => (
-                            <button key={tool.hash} type='button' className='vd-landing__tool' onClick={() => openTool(tool.hash)}>
+                            <button
+                                key={tool.hash}
+                                type='button'
+                                className='vd-landing__tool'
+                                onClick={() => openTool(tool.hash)}
+                            >
                                 <span className='vd-landing__tool-icon' aria-hidden='true'>
                                     {tool.icon}
                                 </span>

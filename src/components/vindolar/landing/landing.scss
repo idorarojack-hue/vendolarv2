@@ -311,12 +311,34 @@
         place-items: center;
         width: 4.4rem;
         height: 4.4rem;
-        border: 1px solid var(--vd-orange);
+        border: 1px solid rgb(255 255 255 / 22%);
         border-radius: 50%;
-        background: var(--vd-icon-bg);
-        color: #e6f4f2;
+        background: linear-gradient(135deg, var(--vd-orange), #4a0a2e);
+        color: #fff;
         font-size: 1.4rem;
         font-weight: 700;
+    }
+
+    // Customer review cards (from reviews.ts)
+    &__stars {
+        display: flex;
+        gap: 0.2rem;
+        margin-bottom: 1rem;
+        font-size: 1.6rem;
+        line-height: 1;
+
+        i {
+            color: rgb(255 255 255 / 22%);
+            font-style: normal;
+
+            &.is-on {
+                color: #f6c343;
+            }
+        }
+    }
+
+    &__card--review p {
+        font-style: italic;
     }
 
     &__tag {

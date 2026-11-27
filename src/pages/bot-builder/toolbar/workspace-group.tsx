@@ -1,10 +1,14 @@
 import classNames from 'classnames';
 import { observer } from 'mobx-react-lite';
+import { DBOT_TABS } from '@/constants/bot-contents';
 import { useStore } from '@/hooks/useStore';
+import { requestPublish } from '@/pages/free-bots/publish-request';
+import { useOwner } from '@/services/vindolar/free-bots-api';
 import {
     LabelPairedArrowRotateLeftMdRegularIcon,
     LabelPairedArrowRotateRightMdRegularIcon,
     LabelPairedArrowsRotateMdRegularIcon,
+    LabelPairedArrowUpFromBracketMdRegularIcon,
     LabelPairedChartLineMdRegularIcon,
     LabelPairedChartTradingviewMdRegularIcon,
     LabelPairedFloppyDiskMdRegularIcon,
@@ -20,8 +24,12 @@ import { useDevice } from '@deriv-com/ui';
 import ToolbarIcon from './toolbar-icon';
 
 const WorkspaceGroup = observer(() => {
-    const { dashboard, toolbar, load_modal } = useStore();
-    const { setPreviewOnPopup, setChartModalVisibility, setTradingViewModalVisibility } = dashboard;
+    const { dashboard, toolbar, load_modal, save_modal, client } = useStore();
+    const { setPreviewOnPopup, setChartModalVisibility, setTradingViewModalVisibility, setActiveTab } = dashboard;
+    const { toggleSaveModal } = save_modal;
+    // Saving and publishing are for the site owner only (checked on the server when publishing).
+    const { is_admin } = useOwner(client?.loginid);
+    // Undo / Redo always look active (as asked); they do nothing when there is no step to undo or redo.
     const { has_redo_stack, has_undo_stack, onResetClick, onSortClick, onUndoClick, onZoomInOutClick } = toolbar;
     const { toggleLoadModal } = load_modal;
     const { isDesktop } = useDevice();
@@ -60,21 +68,40 @@ const WorkspaceGroup = observer(() => {
                         </span>
                     }
                 />
-                {/* Saving is turned off: the button stays visible but does nothing. */}
                 <ToolbarIcon
-                    popover_message={localize('Save (unavailable)')}
+                    popover_message={is_admin ? localize('Save') : localize('Save (owner only)')}
                     icon={
                         <span
-                            className='toolbar__icon toolbar__icon--disabled'
+                            className={classNames('toolbar__icon', { 'toolbar__icon--disabled': !is_admin })}
                             id='db-toolbar__save-button'
                             data-testid='dt_toolbar_save_button'
                             role='button'
-                            aria-disabled='true'
+                            aria-disabled={!is_admin}
+                            onClick={is_admin ? toggleSaveModal : undefined}
                         >
                             <LabelPairedFloppyDiskMdRegularIcon />
                         </span>
                     }
                 />
+                {is_admin && (
+                    <ToolbarIcon
+                        popover_message={localize('Publish to Free Bots')}
+                        icon={
+                            <span
+                                className='toolbar__icon'
+                                id='db-toolbar__publish-button'
+                                data-testid='dt_toolbar_publish_button'
+                                role='button'
+                                onClick={() => {
+                                    requestPublish();
+                                    setActiveTab(DBOT_TABS.FREE_BOTS);
+                                }}
+                            >
+                                <LabelPairedArrowUpFromBracketMdRegularIcon />
+                            </span>
+                        }
+                    />
+                )}
                 <ToolbarIcon
                     popover_message={localize('Sort blocks')}
                     icon={
@@ -122,9 +149,8 @@ const WorkspaceGroup = observer(() => {
                     popover_message={localize('Undo')}
                     icon={
                         <span
-                            className={classNames('toolbar__icon undo', {
-                                'toolbar__icon--disabled': !has_undo_stack,
-                            })}
+                            className='toolbar__icon undo'
+                            aria-disabled={!has_undo_stack}
                             id='db-toolbar__undo-button'
                             data-testid='dt_toolbar_undo_button'
                             onClick={() => onUndoClick(/* redo */ false)}
@@ -137,9 +163,8 @@ const WorkspaceGroup = observer(() => {
                     popover_message={localize('Redo')}
                     icon={
                         <span
-                            className={classNames('toolbar__icon redo', {
-                                'toolbar__icon--disabled': !has_redo_stack,
-                            })}
+                            className='toolbar__icon redo'
+                            aria-disabled={!has_redo_stack}
                             id='db-toolbar__redo-button'
                             data-testid='dt_toolbar_redo_button'
                             onClick={() => onUndoClick(/* redo */ true)}

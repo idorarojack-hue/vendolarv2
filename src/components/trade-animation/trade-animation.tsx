@@ -14,6 +14,7 @@ import Button from '../shared_ui/button';
 import Tooltip from '../shared_ui/tooltip/tooltip';
 import CircularWrapper from './circular-wrapper';
 import ContractStageText from './contract-stage-text';
+import RunSpeedSwitch from './run-speed-switch';
 import './run-panel-tooltip.scss';
 
 type TTradeAnimation = {
@@ -131,10 +132,6 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
     }, [is_stop_button_visible, is_stop_button_disabled]);
     const show_overlay = should_show_overlay && is_contract_completed;
 
-    // Fix TypeScript error by ensuring active_tab is a number
-    // Use a fallback to dashboard if active_tab is undefined
-    const safeActiveTab = typeof active_tab === 'number' ? active_tab : DBOT_TABS.DASHBOARD;
-
     // Function to determine tooltip alignment based on run panel position
     const determineTooltipAlignment = (): string => {
         // Force tooltip to always appear on top for mobile devices
@@ -216,6 +213,7 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
                     {button_props.text}
                 </Button>
             )}
+            <RunSpeedSwitch />
             <div
                 className={classNames('animation__container', className, {
                     'animation--running': contract_stage > 0,

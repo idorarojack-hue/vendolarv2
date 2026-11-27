@@ -363,6 +363,7 @@ class DBot {
                 if (!BinaryBotPrivateRun(BinaryBotPrivateAfterPurchase)) {
                     break;
                 }
+                runPause();
             }
             
             `;

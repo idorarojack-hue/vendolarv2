@@ -1,0 +1,240 @@
+// Owner tools on the Free Bots page: the owner bar, per-card actions and the add/edit dialog.
+
+.vd-message--success {
+    background: rgb(42 157 146 / 12%);
+    color: #1d7a71;
+}
+
+.vd-preset--hidden {
+    border-style: dashed !important;
+    opacity: 0.72;
+}
+
+.vd-fb-admin {
+    &__bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 1rem 1.4rem;
+        padding: 1.2rem 1.6rem;
+        border: 1px solid rgb(var(--vd-accent-rgb) / 30%);
+        border-radius: 1.2rem;
+        background: rgb(var(--vd-accent-rgb) / 6%);
+
+        p {
+            flex: 1 1 24rem;
+            margin: 0;
+            color: var(--vd-text);
+            font-size: 1.3rem;
+            line-height: 1.45;
+        }
+    }
+
+    &__badge {
+        padding: 0.3rem 0.9rem;
+        border-radius: 2rem;
+        background: var(--vd-orange);
+        color: #fff;
+        font-size: 1.1rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    &__button {
+        min-height: 3.8rem;
+        padding: 0 1.6rem;
+        border: 1px solid var(--vd-border-strong);
+        border-radius: 0.8rem;
+        background: var(--vd-panel);
+        color: var(--vd-text);
+        font-size: 1.3rem;
+        font-weight: 700;
+        cursor: pointer;
+
+        &:hover:not(:disabled) {
+            border-color: var(--vd-text);
+        }
+
+        &--primary {
+            border-color: var(--vd-orange);
+            background: var(--vd-orange);
+            color: #fff;
+
+            &:hover:not(:disabled) {
+                border-color: var(--vd-orange-hover);
+                background: var(--vd-orange-hover);
+            }
+        }
+
+        &:disabled {
+            cursor: not-allowed;
+            opacity: 0.55;
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--vd-orange);
+            outline-offset: 2px;
+        }
+    }
+
+    &__card-actions {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.6rem;
+        margin-top: 0.8rem;
+        padding-top: 0.8rem;
+        border-top: 1px dashed var(--vd-border);
+
+        button {
+            min-height: 3.2rem;
+            border: 1px solid var(--vd-border);
+            border-radius: 0.7rem;
+            background: var(--vd-panel);
+            color: var(--vd-text);
+            font-size: 1.2rem;
+            font-weight: 700;
+            cursor: pointer;
+
+            &:hover:not(:disabled) {
+                border-color: var(--vd-border-strong);
+                background: var(--vd-panel-hover);
+            }
+
+            &.is-danger {
+                color: var(--vd-down);
+
+                &:hover:not(:disabled) {
+                    border-color: var(--vd-down);
+                }
+            }
+
+            &:disabled {
+                cursor: not-allowed;
+                opacity: 0.5;
+            }
+        }
+    }
+
+    &__backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 9990;
+        display: grid;
+        place-items: center;
+        padding: 1.6rem;
+        background: rgb(15 23 42 / 50%);
+    }
+
+    &__dialog {
+        display: flex;
+        flex-direction: column;
+        gap: 1.2rem;
+        width: min(52rem, 100%);
+        max-height: calc(100dvh - 3.2rem);
+        padding: 2rem;
+        overflow-y: auto;
+        border-radius: 1.4rem;
+        background: var(--vd-panel);
+        color: var(--vd-text);
+        box-shadow: 0 24px 60px rgb(0 0 0 / 30%);
+
+        h3 {
+            margin: 0;
+            font-size: 1.8rem;
+            font-weight: 800;
+        }
+
+        label {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            min-width: 0;
+
+            > span {
+                color: var(--vd-muted);
+                font-size: 1.2rem;
+                font-weight: 700;
+            }
+        }
+
+        input:not([type='checkbox']),
+        textarea {
+            width: 100%;
+            padding: 0.9rem 1.1rem;
+            border: 1px solid var(--vd-border-strong);
+            border-radius: 0.8rem;
+            background: var(--vd-panel);
+            color: var(--vd-text);
+            font: inherit;
+            font-size: 1.4rem;
+            line-height: 1.4;
+            resize: vertical;
+
+            &:focus {
+                border-color: var(--vd-orange);
+                outline: none;
+                box-shadow: 0 0 0 3px rgb(var(--vd-accent-rgb) / 15%);
+            }
+        }
+    }
+
+    &__row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+
+        &--three {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        @media (max-width: 600px) {
+            grid-template-columns: minmax(0, 1fr);
+
+            &--three {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+    }
+
+    &__check {
+        flex-direction: row !important;
+        align-items: center;
+        gap: 0.8rem !important;
+
+        input {
+            width: 1.8rem;
+            height: 1.8rem;
+            accent-color: var(--vd-orange);
+        }
+
+        span {
+            color: var(--vd-text) !important;
+            font-size: 1.3rem !important;
+            font-weight: 600 !important;
+        }
+    }
+
+    &__hint {
+        margin: 0;
+        padding: 1rem 1.2rem;
+        border-radius: 0.8rem;
+        background: rgb(var(--vd-ink) / 5%);
+        color: var(--vd-muted);
+        font-size: 1.25rem;
+        line-height: 1.45;
+    }
+
+    &__problem {
+        margin: 0;
+        color: var(--vd-down);
+        font-size: 1.3rem;
+        font-weight: 600;
+    }
+
+    &__actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.8rem;
+    }
+}

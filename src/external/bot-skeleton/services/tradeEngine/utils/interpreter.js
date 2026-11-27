@@ -1,4 +1,5 @@
 import { isMultiplierContract } from '@/components/shared';
+import { getRunPauseMs } from '@/services/vindolar/run-speed';
 import cloneThorough from '@/utils/clone';
 import JSInterpreter from '@deriv/js-interpreter';
 import { unrecoverable_errors } from '../../../constants/messages';
@@ -157,6 +158,13 @@ const Interpreter = () => {
         );
 
         js_interpreter.setProperty(scope, 'sleep', createAsync(js_interpreter, sleep));
+
+        // Slow / Fast switch beside Run: wait between runs when set to Slow.
+        js_interpreter.setProperty(
+            scope,
+            'runPause',
+            createAsync(js_interpreter, () => new Promise(resolve => setTimeout(resolve, getRunPauseMs())))
+        );
     }
 
     async function stop() {
