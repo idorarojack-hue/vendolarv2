@@ -5,9 +5,16 @@ import ReactDOM from 'react-dom';
 import { DBOT_TABS } from '@/constants/bot-contents';
 import { load, save_types } from '@/external/bot-skeleton';
 import { useStore } from '@/hooks/useStore';
+import { readBotFiles, TBotFile } from '@/services/vindolar/bot-file';
 import { loadBot, STRATEGY_LABELS, TBotConfig, TStrategyKey } from '@/services/vindolar/bot-loader';
 import { builtInBots } from '@/services/vindolar/built-in-bots';
-import { fetchPublishedBots, publishBots, useOwner } from '@/services/vindolar/free-bots-api';
+import {
+    fetchBotXml,
+    fetchPublishedBots,
+    publishBots,
+    storeBotFile,
+    useOwner,
+} from '@/services/vindolar/free-bots-api';
 import { PUBLISH_COLLECTIONS, TBotCollection, TStoredBot } from '@/services/vindolar/free-bots-schema';
 import { LabelPairedArrowUpRightCaptionRegularIcon } from '@deriv/quill-icons/LabelPaired';
 import { localize } from '@deriv-com/translations';
@@ -90,10 +97,29 @@ const BotEditor = ({
     bot?: TStoredBot;
     busy: boolean;
     onCancel: () => void;
-    onSave: (bot: TStoredBot, destination: TBotCollection) => void;
+    onSave: (bot: TStoredBot, destination: TBotCollection, new_xml?: string) => void;
 }) => {
     const [draft, setDraft] = React.useState<TDraft>(() => toDraft(collection, bot));
     const [problem, setProblem] = React.useState('');
+    const [replacement, setReplacement] = React.useState<TBotFile | null>(null);
+
+    const pickReplacement = async (files: FileList | null) => {
+        setProblem('');
+        if (!files?.length) return;
+        const [file] = await readBotFiles([files[0]]);
+        if (file.problems.length) {
+            setReplacement(null);
+            setProblem(`${file.file_name}: ${file.problems.join(' ')}`);
+            return;
+        }
+        setReplacement(file);
+        setDraft(prev => ({
+            ...prev,
+            use_workspace: false,
+            market_label: prev.market_label || file.market_label,
+            contract_label: prev.contract_label || file.contract_label,
+        }));
+    };
     const is_template = Boolean(bot?.config);
     const set =
         (key: keyof TDraft) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -115,14 +141,20 @@ const BotEditor = ({
             hidden: bot?.hidden,
             updated_at: Date.now(),
         };
-        if (draft.use_workspace) {
+        // A new bot file (uploaded or from the Bot Builder) is stored by the library before publishing.
+        let new_xml: string | undefined;
+        if (replacement) {
+            new_xml = replacement.xml;
+        } else if (draft.use_workspace) {
             const xml = currentWorkspaceXml();
             if (!xml) return setProblem(localize('Open the Bot Builder and build or load the bot there first.'));
-            next.xml = xml;
+            new_xml = xml;
+        } else if (bot?.xml_url) {
+            next.xml_url = bot.xml_url;
         } else if (bot?.xml) {
             next.xml = bot.xml;
         }
-        if (!next.xml && bot?.config) {
+        if (!new_xml && !next.xml && !next.xml_url && bot?.config) {
             const numbers = { stake: draft.stake, profit: draft.profit, loss: draft.loss };
             const parsed: Record<string, number> = {};
             for (const [key, text] of Object.entries(numbers)) {
@@ -134,7 +166,7 @@ const BotEditor = ({
             }
             next.config = { ...bot.config, ...parsed };
         }
-        onSave(next, draft.destination);
+        onSave(next, draft.destination, new_xml);
     };
 
     // Rendered on <body>: the tool pages are their own layer, which would put the cards on top of the form.
@@ -206,10 +238,33 @@ const BotEditor = ({
                     </label>
                 )}
                 {bot ? (
-                    <label className='vd-fb-admin__check'>
-                        <input type='checkbox' checked={draft.use_workspace} onChange={set('use_workspace')} />
-                        <span>{localize('Replace this bot with what is open in the Bot Builder now')}</span>
-                    </label>
+                    <>
+                        <label className='vd-fb-admin__check'>
+                            <input
+                                type='checkbox'
+                                checked={draft.use_workspace}
+                                onChange={e => {
+                                    set('use_workspace')(e);
+                                    if (e.target.checked) setReplacement(null);
+                                }}
+                            />
+                            <span>{localize('Replace this bot with what is open in the Bot Builder now')}</span>
+                        </label>
+                        <label className='vd-fb-admin__file'>
+                            <span>{localize('Or replace it with a bot file (.xml)')}</span>
+                            <input
+                                type='file'
+                                accept='.xml,text/xml,application/xml'
+                                onChange={e => pickReplacement(e.target.files)}
+                            />
+                            {replacement && (
+                                <small>
+                                    {localize('New file: {{file}}', { file: replacement.file_name })}
+                                    {replacement.warnings.length ? ` — ${replacement.warnings.join(' ')}` : ''}
+                                </small>
+                            )}
+                        </label>
+                    </>
                 ) : (
                     <p className='vd-fb-admin__hint'>
                         {localize(
@@ -228,6 +283,157 @@ const BotEditor = ({
                     </button>
                     <button type='submit' className='vd-fb-admin__button vd-fb-admin__button--primary' disabled={busy}>
                         {busy ? localize('Saving…') : localize('Save and publish')}
+                    </button>
+                </div>
+            </form>
+        </div>,
+        document.body
+    );
+};
+
+type TUploadRow = TBotFile & { include: boolean; description: string };
+
+/** Review uploaded .xml bot files, then publish them all to one list (owner only). */
+const BotUploadDialog = ({
+    collection,
+    files,
+    busy,
+    progress,
+    onCancel,
+    onPublish,
+}: {
+    collection: TBotCollection;
+    files: TBotFile[];
+    busy: boolean;
+    progress: string;
+    onCancel: () => void;
+    onPublish: (rows: TUploadRow[], destination: TBotCollection) => void;
+}) => {
+    const [rows, setRows] = React.useState<TUploadRow[]>(() =>
+        files.map(file => ({ ...file, include: !file.problems.length, description: '' }))
+    );
+    const [destination, setDestination] = React.useState<TBotCollection>(collection);
+    const chosen = rows.filter(row => row.include && !row.problems.length);
+    const update = (index: number, patch: Partial<TUploadRow>) =>
+        setRows(prev => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+
+    return ReactDOM.createPortal(
+        <div className='vd-fb-admin__backdrop' role='presentation' onClick={busy ? undefined : onCancel}>
+            <form
+                className='vd-fb-admin__dialog vd-fb-upload'
+                role='dialog'
+                aria-modal='true'
+                aria-label={localize('Upload bot files')}
+                onClick={e => e.stopPropagation()}
+                onSubmit={e => {
+                    e.preventDefault();
+                    if (chosen.length && chosen.every(row => row.name.trim())) onPublish(chosen, destination);
+                }}
+            >
+                <h3>{localize('Upload bot files')}</h3>
+                <p className='vd-fb-admin__hint'>
+                    {localize(
+                        'Check each bot, add a short description, then publish. Users load the file into the Bot Builder exactly as it is.'
+                    )}
+                </p>
+                <ul className='vd-fb-upload__list'>
+                    {rows.map((row, index) => (
+                        <li
+                            // eslint-disable-next-line react/no-array-index-key
+                            key={`${row.file_name}-${index}`}
+                            className={classNames('vd-fb-upload__row', { 'is-off': !row.include })}
+                        >
+                            <label className='vd-fb-admin__check'>
+                                <input
+                                    type='checkbox'
+                                    checked={row.include}
+                                    disabled={busy || row.problems.length > 0}
+                                    onChange={e => update(index, { include: e.target.checked })}
+                                />
+                                <span>{row.file_name}</span>
+                            </label>
+                            {row.problems.length > 0 ? (
+                                <p className='vd-fb-admin__problem'>{row.problems.join(' ')}</p>
+                            ) : (
+                                <>
+                                    <div className='vd-fb-admin__row'>
+                                        <label>
+                                            <span>{localize('Name')}</span>
+                                            <input
+                                                value={row.name}
+                                                maxLength={60}
+                                                disabled={busy || !row.include}
+                                                onChange={e => update(index, { name: e.target.value })}
+                                            />
+                                        </label>
+                                        <label>
+                                            <span>{localize('Description')}</span>
+                                            <input
+                                                value={row.description}
+                                                maxLength={400}
+                                                disabled={busy || !row.include}
+                                                placeholder={localize('What it trades and when')}
+                                                onChange={e => update(index, { description: e.target.value })}
+                                            />
+                                        </label>
+                                        <label>
+                                            <span>{localize('Market')}</span>
+                                            <input
+                                                value={row.market_label}
+                                                maxLength={60}
+                                                disabled={busy || !row.include}
+                                                onChange={e => update(index, { market_label: e.target.value })}
+                                            />
+                                        </label>
+                                        <label>
+                                            <span>{localize('Contract')}</span>
+                                            <input
+                                                value={row.contract_label}
+                                                maxLength={60}
+                                                disabled={busy || !row.include}
+                                                onChange={e => update(index, { contract_label: e.target.value })}
+                                            />
+                                        </label>
+                                    </div>
+                                    {row.warnings.map(warning => (
+                                        <p key={warning} className='vd-fb-upload__warning'>
+                                            {warning}
+                                        </p>
+                                    ))}
+                                </>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+                <label>
+                    <span>{localize('Publish to')}</span>
+                    <select
+                        value={destination}
+                        disabled={busy}
+                        onChange={e => setDestination(e.target.value as TBotCollection)}
+                    >
+                        {PUBLISH_COLLECTIONS.map(id => (
+                            <option key={id} value={id}>
+                                {localize(COLLECTION_NAMES[id])}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+                {progress && <p className='vd-fb-admin__hint'>{progress}</p>}
+                <div className='vd-fb-admin__actions'>
+                    <button type='button' className='vd-fb-admin__button' disabled={busy} onClick={onCancel}>
+                        {localize('Cancel')}
+                    </button>
+                    <button
+                        type='submit'
+                        className='vd-fb-admin__button vd-fb-admin__button--primary'
+                        disabled={busy || !chosen.length || chosen.some(row => !row.name.trim())}
+                    >
+                        {busy
+                            ? localize('Publishing…')
+                            : chosen.length === 1
+                              ? localize('Publish 1 bot')
+                              : localize('Publish {{n}} bots', { n: chosen.length })}
                     </button>
                 </div>
             </form>
@@ -260,6 +466,9 @@ const BotLibrary = observer(({ collection, heading, empty_text, card_label }: TB
     const [message, setMessage] = React.useState<{ tone: 'error' | 'ok'; text: string } | null>(null);
     const [editing, setEditing] = React.useState<TStoredBot | 'new' | null>(null);
     const [busy, setBusy] = React.useState(false);
+    const [uploads, setUploads] = React.useState<TBotFile[] | null>(null);
+    const [upload_progress, setUploadProgress] = React.useState('');
+    const file_input = React.useRef<HTMLInputElement>(null);
 
     React.useEffect(() => {
         let active = true;
@@ -286,14 +495,15 @@ const BotLibrary = observer(({ collection, heading, empty_text, card_label }: TB
         setMessage(null);
         setLoading(bot.id);
         try {
+            const xml = await fetchBotXml(bot);
             dashboard.setActiveTab(DBOT_TABS.BOT_BUILDER);
-            if (bot.xml) {
+            if (xml) {
                 const workspace = (window as any).Blockly?.derivWorkspace;
                 if (!workspace) {
                     throw new Error(localize('The Bot Builder is still starting. Please wait a moment and try again.'));
                 }
                 await load({
-                    block_string: bot.xml,
+                    block_string: xml,
                     file_name: bot.name,
                     workspace,
                     from: save_types.LOCAL,
@@ -327,7 +537,22 @@ const BotLibrary = observer(({ collection, heading, empty_text, card_label }: TB
         }
     };
 
-    const saveBot = async (bot: TStoredBot, destination: TBotCollection) => {
+    const saveBot = async (input: TStoredBot, destination: TBotCollection, new_xml?: string) => {
+        let bot = input;
+        if (new_xml) {
+            setBusy(true);
+            setMessage(null);
+            try {
+                const stored = await storeBotFile(bot.name, new_xml);
+                bot = { ...bot, xml: stored.xml, xml_url: stored.xml_url, config: undefined };
+                if (!bot.xml) delete bot.xml;
+                if (!bot.xml_url) delete bot.xml_url;
+            } catch (e: any) {
+                setBusy(false);
+                setMessage({ tone: 'error', text: e?.message ?? localize('The bot file could not be uploaded.') });
+                return;
+            }
+        }
         if (destination !== collection) {
             // Publishing to another page's list: add it to the front of that list.
             const other = (await fetchPublishedBots(destination)) ?? builtInBots(destination);
@@ -349,6 +574,65 @@ const BotLibrary = observer(({ collection, heading, empty_text, card_label }: TB
                 ? localize('"{{name}}" updated.', { name: bot.name })
                 : localize('"{{name}}" published.', { name: bot.name })
         );
+    };
+
+    const pickFiles = async (files: FileList | null) => {
+        if (!files?.length) return;
+        setMessage(null);
+        setUploadProgress('');
+        setUploads(await readBotFiles(files));
+        if (file_input.current) file_input.current.value = '';
+    };
+
+    const publishUploads = async (rows: TUploadRow[], destination: TBotCollection) => {
+        setBusy(true);
+        setMessage(null);
+        const added: TStoredBot[] = [];
+        try {
+            for (const [index, row] of rows.entries()) {
+                setUploadProgress(
+                    localize('Uploading {{n}} of {{total}}: {{name}}…', {
+                        n: index + 1,
+                        total: rows.length,
+                        name: row.name,
+                    })
+                );
+                // eslint-disable-next-line no-await-in-loop
+                const stored = await storeBotFile(row.name.trim(), row.xml);
+                added.push({
+                    id: newBotId(row.name),
+                    name: row.name.trim(),
+                    description: row.description.trim(),
+                    market_label: row.market_label.trim(),
+                    contract_label: row.contract_label.trim(),
+                    updated_at: Date.now(),
+                    ...stored,
+                });
+            }
+            setUploadProgress(localize('Publishing…'));
+            const base =
+                destination === collection
+                    ? all_bots
+                    : ((await fetchPublishedBots(destination)) ?? builtInBots(destination));
+            const saved = await publishBots([...added, ...base], destination);
+            if (destination === collection) setPublished(saved);
+            setUploads(null);
+            setMessage({
+                tone: 'ok',
+                text:
+                    destination === collection
+                        ? localize('{{n}} bot(s) published.', { n: added.length })
+                        : localize('{{n}} bot(s) published to {{list}}.', {
+                              n: added.length,
+                              list: localize(COLLECTION_NAMES[destination]),
+                          }),
+            });
+        } catch (e: any) {
+            setUploadProgress('');
+            setMessage({ tone: 'error', text: e?.message ?? localize('The bots could not be published.') });
+        } finally {
+            setBusy(false);
+        }
     };
 
     const toggleHidden = (bot: TStoredBot) => {
@@ -400,14 +684,32 @@ const BotLibrary = observer(({ collection, heading, empty_text, card_label }: TB
                                   'Bot storage is not connected yet. Connect a Blob store to this project in Vercel to publish changes.'
                               )}
                     </p>
-                    <button
-                        type='button'
-                        className='vd-fb-admin__button vd-fb-admin__button--primary'
-                        disabled={!can_edit}
-                        onClick={() => setEditing('new')}
-                    >
-                        {localize('+ Add bot from Bot Builder')}
-                    </button>
+                    <div className='vd-fb-admin__bar-actions'>
+                        <button
+                            type='button'
+                            className='vd-fb-admin__button vd-fb-admin__button--primary'
+                            disabled={!can_edit}
+                            onClick={() => file_input.current?.click()}
+                        >
+                            {localize('⬆ Upload bot files (.xml)')}
+                        </button>
+                        <button
+                            type='button'
+                            className='vd-fb-admin__button'
+                            disabled={!can_edit}
+                            onClick={() => setEditing('new')}
+                        >
+                            {localize('+ Add bot from Bot Builder')}
+                        </button>
+                        <input
+                            ref={file_input}
+                            type='file'
+                            accept='.xml,text/xml,application/xml'
+                            multiple
+                            hidden
+                            onChange={e => pickFiles(e.target.files)}
+                        />
+                    </div>
                 </div>
             )}
 
@@ -423,7 +725,9 @@ const BotLibrary = observer(({ collection, heading, empty_text, card_label }: TB
             {ready && bots.length === 0 && (
                 <p className='vd-page__note'>
                     {owner.is_admin
-                        ? localize('No bots here yet. Build one in the Bot Builder, then press "+ Add bot".')
+                        ? localize(
+                              'No bots here yet. Upload your bot files (.xml), or build one in the Bot Builder and press "+ Add bot".'
+                          )
                         : empty_text}
                 </p>
             )}
@@ -521,6 +825,17 @@ const BotLibrary = observer(({ collection, heading, empty_text, card_label }: TB
                     );
                 })}
             </div>
+
+            {uploads && (
+                <BotUploadDialog
+                    collection={collection}
+                    files={uploads}
+                    busy={busy}
+                    progress={upload_progress}
+                    onCancel={() => setUploads(null)}
+                    onPublish={publishUploads}
+                />
+            )}
 
             {editing && (
                 <BotEditor

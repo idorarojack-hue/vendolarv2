@@ -4,6 +4,7 @@
  * PUT  /api/bots?collection=…  → { bots: [...] }  Owner only (Deriv login checked). Body: { bots: [...] }
  */
 import {
+    cleanupBotFiles,
     collectionFromQuery,
     readBots,
     requireAdmin,
@@ -24,7 +25,10 @@ export default async function handler(req: TRequest, res: TResponse) {
         if (req.method === 'PUT') {
             await requireAdmin(req);
             const body = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) as { bots?: unknown };
-            res.status(200).json({ bots: await writeBots(body?.bots, collection) });
+            const bots = await writeBots(body?.bots, collection);
+            // Housekeeping: remove bot files no list uses any more. Never fails the save.
+            await cleanupBotFiles().catch(error => console.error('bot file cleanup failed', error));
+            res.status(200).json({ bots });
             return;
         }
         res.setHeader('Allow', 'GET, PUT');

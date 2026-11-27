@@ -25,6 +25,8 @@ export type TStoredBot = {
     config?: Record<string, TBotConfigValue>;
     /** Or a full Bot Builder workspace, saved from the builder. */
     xml?: string;
+    /** Or a Bot Builder file stored on its own (uploaded .xml), loaded when someone opens the bot. */
+    xml_url?: string;
     /** Hidden ("blocked") bots are only listed for the owner. */
     hidden?: boolean;
     updated_at?: number;
@@ -36,6 +38,29 @@ export const FREE_BOT_LIMITS = {
     max_description: 400,
     max_config_keys: 30,
     max_xml_chars: 400_000,
+    /** Uploaded bot files are stored separately, so they may be bigger than inline workspaces. */
+    max_file_chars: 2_000_000,
+};
+
+/** Uploaded bot files live in this project's Vercel Blob store (public, unguessable URLs). */
+export const isBotFileUrl = (value: unknown): value is string => {
+    if (typeof value !== 'string' || value.length > 500) return false;
+    try {
+        const url = new URL(value);
+        return url.protocol === 'https:' && url.hostname.endsWith('.public.blob.vercel-storage.com');
+    } catch {
+        return false;
+    }
+};
+
+/** Checks an uploaded Bot Builder file. Returns the cleaned XML or throws with a readable reason. */
+export const checkBotFileXml = (value: unknown) => {
+    if (typeof value !== 'string') throw new Error('The bot file is empty.');
+    const xml = value.replace(/^\uFEFF/, '').trim();
+    if (!xml.startsWith('<xml')) throw new Error('This is not a Deriv Bot file (it must start with <xml>).');
+    if (!xml.includes('<block')) throw new Error('This bot file has no blocks.');
+    if (xml.length > FREE_BOT_LIMITS.max_file_chars) throw new Error('This bot file is too large (over 2 MB).');
+    return xml;
 };
 
 const cleanText = (value: unknown, field: string, max: number, required = true) => {
@@ -87,7 +112,15 @@ export const sanitizeBot = (input: unknown, now = Date.now()): TStoredBot => {
         bot.xml = raw.xml;
     }
 
-    if (!bot.config && !bot.xml) throw new Error(`"${name}" needs strategy settings or a Bot Builder workspace.`);
+    if (raw.xml_url !== undefined) {
+        if (!isBotFileUrl(raw.xml_url))
+            throw new Error(`The bot file of "${name}" must be stored in this site's storage.`);
+        bot.xml_url = raw.xml_url;
+    }
+
+    if (!bot.config && !bot.xml && !bot.xml_url) {
+        throw new Error(`"${name}" needs strategy settings or a Bot Builder workspace.`);
+    }
     return bot;
 };
 

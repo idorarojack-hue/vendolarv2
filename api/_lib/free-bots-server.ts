@@ -7,12 +7,18 @@
  */
 import { del, list, put } from '@vercel/blob';
 import {
+    BOT_COLLECTIONS,
+    checkBotFileXml,
     isAdminAccount,
     isBotCollection,
     sanitizeBots,
     TBotCollection,
     TStoredBot,
 } from '../../src/services/vindolar/free-bots-schema';
+
+const BOT_FILES_PREFIX = 'bot-files/';
+/** A file uploaded but not yet in any list is kept this long (the owner may still be publishing it). */
+const UNUSED_FILE_GRACE_MS = 60 * 60 * 1000;
 
 // Free Bots keep their original folder so lists saved before collections existed still load.
 const prefixFor = (collection: TBotCollection) =>
@@ -115,6 +121,52 @@ export const writeBots = async (input: unknown, collection: TBotCollection = 'fr
     const old = blobs.filter(blob => blob.url !== saved.url).map(blob => blob.url);
     if (old.length) await del(old);
     return bots;
+};
+
+/** Stores one uploaded Bot Builder file and returns its public URL (an unguessable name). */
+export const writeBotFile = async (name: unknown, xml: unknown): Promise<string> => {
+    assertStorage();
+    let clean: string;
+    try {
+        clean = checkBotFileXml(xml);
+    } catch (e) {
+        throw new HttpError(400, (e as Error).message);
+    }
+    const slug =
+        String(name ?? '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 40) || 'bot';
+    const saved = await put(`${BOT_FILES_PREFIX}${slug}.xml`, clean, {
+        access: 'public',
+        contentType: 'application/xml',
+        addRandomSuffix: true,
+    });
+    return saved.url;
+};
+
+/**
+ * Deletes uploaded bot files that no list uses any more (a bot was deleted or its file replaced).
+ * Skips everything if any list can't be read, and keeps files younger than an hour.
+ */
+export const cleanupBotFiles = async (now = Date.now()) => {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) return 0;
+    const lists = await Promise.all(BOT_COLLECTIONS.map(collection => readBots(collection)));
+    const in_use = new Set(lists.flatMap(bots => (bots ?? []).map(bot => bot.xml_url).filter(Boolean)));
+    const unused: string[] = [];
+    let cursor: string | undefined;
+    do {
+        // eslint-disable-next-line no-await-in-loop
+        const page = await list({ prefix: BOT_FILES_PREFIX, cursor });
+        page.blobs.forEach(blob => {
+            const age = now - new Date(blob.uploadedAt).getTime();
+            if (!in_use.has(blob.url) && age > UNUSED_FILE_GRACE_MS) unused.push(blob.url);
+        });
+        cursor = page.hasMore ? page.cursor : undefined;
+    } while (cursor);
+    if (unused.length) await del(unused);
+    return unused.length;
 };
 
 export const sendError = (res: TResponse, error: unknown) => {

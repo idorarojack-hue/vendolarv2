@@ -257,3 +257,79 @@
         gap: 0.8rem;
     }
 }
+
+// Owner bar: upload and add buttons side by side (they wrap on phones).
+.vd-fb-admin__bar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+}
+
+// Checkboxes in the owner forms. Deriv's UI library resets native checkboxes to nothing, so restore them here.
+.vd-fb-admin__dialog input[type='checkbox'] {
+    flex-shrink: 0;
+    appearance: auto;
+    accent-color: var(--vd-orange);
+    cursor: pointer;
+}
+
+// "Or replace it with a bot file (.xml)" in the edit form.
+.vd-fb-admin__file {
+    padding: 1rem 1.2rem;
+    border: 1px dashed var(--vd-border-strong);
+    border-radius: 0.8rem;
+
+    input[type='file'] {
+        padding: 0;
+        border: none;
+        font-size: 1.3rem;
+    }
+
+    small {
+        color: var(--vd-muted);
+        font-size: 1.2rem;
+        line-height: 1.4;
+    }
+}
+
+// Upload form: one row per file.
+.vd-fb-upload {
+    width: min(78rem, 100%) !important;
+
+    &__list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    &__row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+        padding: 1.2rem;
+        border: 1px solid var(--vd-border);
+        border-radius: 1rem;
+        background: var(--vd-bg);
+
+        &.is-off {
+            opacity: 0.6;
+        }
+
+        .vd-fb-admin__check span {
+            overflow-wrap: anywhere;
+        }
+    }
+
+    &__warning {
+        margin: 0;
+        padding: 0.6rem 0.9rem;
+        border-radius: 0.6rem;
+        background: rgb(217 154 30 / 14%);
+        color: #8a5a00;
+        font-size: 1.2rem;
+        line-height: 1.4;
+    }
+}

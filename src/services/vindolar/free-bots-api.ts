@@ -71,6 +71,37 @@ export const publishBots = async (bots: TStoredBot[], collection: TBotCollection
     return data.bots;
 };
 
+/**
+ * Owner only. Stores a bot's Bot Builder file on its own and returns where the bot should point
+ * (`xml_url`). Local development keeps the file inside the bot instead (`xml`).
+ */
+export const storeBotFile = async (name: string, xml: string): Promise<Pick<TStoredBot, 'xml' | 'xml_url'>> => {
+    if (isDevOwner()) return { xml };
+    const response = await fetch('/api/bot-files', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ name, xml }),
+    });
+    const data = await readJson(response);
+    if (!response.ok || !data?.url) throw new Error(data?.error ?? `"${name}" could not be uploaded.`);
+    return { xml_url: data.url };
+};
+
+const xml_cache = new Map<string, string>();
+
+/** The Bot Builder XML of a bot, wherever it is kept. */
+export const fetchBotXml = async (bot: Pick<TStoredBot, 'xml' | 'xml_url' | 'name'>): Promise<string | null> => {
+    if (bot.xml) return bot.xml;
+    if (!bot.xml_url) return null;
+    const cached = xml_cache.get(bot.xml_url);
+    if (cached) return cached;
+    const response = await fetch(bot.xml_url);
+    if (!response.ok) throw new Error(`The file of "${bot.name}" could not be downloaded.`);
+    const xml = await response.text();
+    xml_cache.set(bot.xml_url, xml);
+    return xml;
+};
+
 export type TOwnerStatus = { is_admin: boolean; storage_ready: boolean; checked: boolean };
 
 let owner_promise: Promise<TOwnerStatus> | null = null;
