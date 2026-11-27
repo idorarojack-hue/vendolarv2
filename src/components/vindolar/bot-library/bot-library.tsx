@@ -139,6 +139,7 @@ const BotEditor = ({
             market_label: draft.market_label.trim(),
             contract_label: draft.contract_label.trim(),
             hidden: bot?.hidden,
+            blocked: bot?.blocked,
             updated_at: Date.now(),
         };
         // A new bot file (uploaded or from the Bot Builder) is stored by the library before publishing.
@@ -492,6 +493,10 @@ const BotLibrary = observer(({ collection, heading, empty_text, card_label }: TB
     const can_edit = owner.is_admin && owner.storage_ready && !busy;
 
     const loadIntoBuilder = async (bot: TStoredBot) => {
+        if (bot.blocked && !owner.is_admin) {
+            setMessage({ tone: 'error', text: localize('This bot is blocked by the site owner.') });
+            return;
+        }
         setMessage(null);
         setLoading(bot.id);
         try {
@@ -635,6 +640,18 @@ const BotLibrary = observer(({ collection, heading, empty_text, card_label }: TB
         }
     };
 
+    const toggleBlocked = (bot: TStoredBot) => {
+        const next = all_bots.map(b =>
+            b.id === bot.id ? { ...b, blocked: !b.blocked || undefined, updated_at: Date.now() } : b
+        );
+        publish(
+            next,
+            bot.blocked
+                ? localize('"{{name}}" can be used again.', { name: bot.name })
+                : localize('"{{name}}" is blocked: users can see it but not load it.', { name: bot.name })
+        );
+    };
+
     const toggleHidden = (bot: TStoredBot) => {
         const next = all_bots.map(b => (b.id === bot.id ? { ...b, hidden: !b.hidden, updated_at: Date.now() } : b));
         publish(
@@ -738,13 +755,17 @@ const BotLibrary = observer(({ collection, heading, empty_text, card_label }: TB
                     return (
                         <article
                             key={bot.id}
-                            className={classNames('vd-card vd-preset', { 'vd-preset--hidden': bot.hidden })}
+                            className={classNames('vd-card vd-preset', {
+                                'vd-preset--hidden': bot.hidden,
+                                'vd-preset--blocked': bot.blocked,
+                            })}
                         >
                             <div className='vd-preset__top'>
                                 <span className='vd-field__label'>
                                     {bot.hidden
                                         ? localize('Hidden from users')
                                         : localize(card_label ?? COLLECTION_NAMES[collection])}
+                                    {bot.blocked && <em className='vd-preset__blocked'>{localize('Blocked')}</em>}
                                 </span>
                                 <span className='vd-card__badge vd-card__badge--teal'>
                                     {strategy && STRATEGY_LABELS[strategy]
@@ -775,10 +796,15 @@ const BotLibrary = observer(({ collection, heading, empty_text, card_label }: TB
                             <button
                                 type='button'
                                 className='vd-primary-button vd-preset__open'
-                                disabled={!!loading}
+                                disabled={!!loading || (bot.blocked && !owner.is_admin)}
+                                title={bot.blocked ? localize('This bot is blocked by the site owner.') : undefined}
                                 onClick={() => loadIntoBuilder(bot)}
                             >
-                                {loading === bot.id ? localize('Loading…') : localize('Load bot')}
+                                {loading === bot.id
+                                    ? localize('Loading…')
+                                    : bot.blocked && !owner.is_admin
+                                      ? localize('Blocked')
+                                      : localize('Load bot')}
                                 <LabelPairedArrowUpRightCaptionRegularIcon
                                     height='16px'
                                     width='16px'
@@ -792,6 +818,9 @@ const BotLibrary = observer(({ collection, heading, empty_text, card_label }: TB
                                     </button>
                                     <button type='button' disabled={!can_edit} onClick={() => toggleHidden(bot)}>
                                         {bot.hidden ? localize('Unhide') : localize('Hide')}
+                                    </button>
+                                    <button type='button' disabled={!can_edit} onClick={() => toggleBlocked(bot)}>
+                                        {bot.blocked ? localize('Unblock') : localize('Block')}
                                     </button>
                                     <button
                                         type='button'

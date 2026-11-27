@@ -94,7 +94,7 @@
 
     &__card-actions {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr)) 3.2rem 3.2rem;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) 3.2rem 3.2rem;
 
         &--preset {
             grid-template-columns: repeat(4, minmax(0, 1fr)) 3.2rem 3.2rem;
@@ -332,4 +332,25 @@
         font-size: 1.2rem;
         line-height: 1.4;
     }
+}
+
+// Blocked bots: visible to users, but greyed and can't be loaded.
+.vd-preset--blocked {
+    .vd-preset__open:disabled {
+        background: rgb(var(--vd-ink) / 12%) !important;
+        color: var(--vd-muted) !important;
+        cursor: not-allowed;
+    }
+}
+
+.vd-preset__blocked {
+    margin-inline-start: 0.6rem;
+    padding: 0.15rem 0.6rem;
+    border-radius: 2rem;
+    background: rgb(224 67 79 / 12%);
+    color: var(--vd-down);
+    font-size: 1rem;
+    font-style: normal;
+    font-weight: 800;
+    text-transform: uppercase;
 }

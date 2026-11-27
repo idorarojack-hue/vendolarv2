@@ -29,6 +29,8 @@ export type TStoredBot = {
     xml_url?: string;
     /** Hidden ("blocked") bots are only listed for the owner. */
     hidden?: boolean;
+    /** Blocked bots stay visible to users but can't be loaded (only the owner can open them). */
+    blocked?: boolean;
     updated_at?: number;
 };
 
@@ -88,6 +90,7 @@ export const sanitizeBot = (input: unknown, now = Date.now()): TStoredBot => {
         updated_at: typeof raw.updated_at === 'number' && Number.isFinite(raw.updated_at) ? raw.updated_at : now,
     };
     if (raw.hidden === true) bot.hidden = true;
+    if (raw.blocked === true) bot.blocked = true;
 
     if (raw.config !== undefined) {
         if (!raw.config || typeof raw.config !== 'object' || Array.isArray(raw.config)) {
